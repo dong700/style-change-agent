@@ -39,6 +39,14 @@ def index():
     """首页"""
     return render_template('index.html')
 
+@app.route('/health')
+def health():
+    """健康检查端点"""
+    return jsonify({
+        'status': 'healthy',
+        'service': 'style-change-agent'
+    }), 200
+
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
     """上传并分析文件"""
@@ -377,4 +385,7 @@ def export_word():
         }), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # Railway 需要监听 0.0.0.0 并使用 PORT 环境变量
+    import os
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
