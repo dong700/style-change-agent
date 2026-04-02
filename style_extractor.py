@@ -593,11 +593,24 @@ def analyze_document(file_path: str, use_llm: bool = False, output_dir: str = No
     # 使用 LLM 分析风格并过滤词频
     if use_llm:
         try:
+            # 检查 API Key 是否设置
+            import os
+            api_key = os.environ.get('DASHSCOPE_API_KEY')
+            if not api_key:
+                raise Exception("未设置 DASHSCOPE_API_KEY 环境变量，请检查 Railway 环境变量配置")
+            
             llm_analyzer = LLMStyleAnalyzer(model=配置 ['模型名称'])
             
             # 1. 分析文本风格
+            print(f"  正在调用 LLM 进行风格分析...")
             llm_result = llm_analyzer.analyze(text, max_length=配置 ['句子最大长度'])
+            
+            # 检查 LLM 分析是否成功
+            if 'error' in llm_result:
+                raise Exception(f"LLM 分析失败：{llm_result.get('error', '未知错误')}")
+            
             features['LLM 风格分析'] = llm_result
+            print(f"  ✓ LLM 风格分析完成，获取到 {len(llm_result.get('style_labels', []))} 个风格标签")
             
             # 2. 获取原始词频
             word_freq = extractor.get_word_frequency(top_n=配置 ['最大词频数'])
@@ -609,13 +622,22 @@ def analyze_document(file_path: str, use_llm: bool = False, output_dir: str = No
             # 4. 只保留过滤后的词频
             features['词频统计'] = filtered_result.get('filtered_word_freq', {})
             features['词频说明'] = filtered_result.get('explanation', '')
+            print(f"  ✓ 词频过滤完成")
             
+        except ImportError as e:
+            error_msg = f"LLM 库未安装：{str(e)}"
+            print(f"  ✗ {error_msg}")
+            features['LLM 风格分析'] = {'error': error_msg}
+            features['词频统计'] = {}
+            features['词频说明'] = 'LLM 不可用'
         except Exception as e:
-            features['LLM 风格分析'] = {'error': str(e)}
+            error_msg = f"LLM 分析出错：{str(e)}"
+            print(f"  ✗ {error_msg}")
+            features['LLM 风格分析'] = {'error': error_msg}
             # LLM 失败时仍保留原始词频
             word_freq = extractor.get_word_frequency(top_n=配置 ['最大词频数'])
             features['词频统计'] = word_freq
-            features['词频说明'] = 'LLM 过滤失败，使用原始词频'
+            features['词频说明'] = 'LLM 失败，使用原始词频'
     else:
         # 不使用 LLM 时，仍保留原始词频
         word_freq = extractor.get_word_frequency(top_n=配置 ['最大词频数'])

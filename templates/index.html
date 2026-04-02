@@ -875,12 +875,26 @@
             document.getElementById('readability-conjunction').textContent = (readability['连词密度'] || 0).toFixed(2) + '%';
 
             // 整体风格概述
-            const overallSummary = data['LLM 风格分析']?.overall_style_summary || '暂无整体风格概述';
-            document.getElementById('overallSummary').textContent = overallSummary;
+            const llmAnalysis = data['LLM 风格分析'];
+            if (llmAnalysis && llmAnalysis.error) {
+                // LLM 分析失败，显示错误信息
+                document.getElementById('overallSummary').textContent = `LLM 分析失败：${llmAnalysis.error}`;
+                document.getElementById('overallSummary').style.color = '#dc3545';
+            } else {
+                const overallSummary = llmAnalysis?.overall_style_summary || '暂无整体风格概述';
+                document.getElementById('overallSummary').textContent = overallSummary;
+                document.getElementById('overallSummary').style.color = '#333';
+            }
 
             // 风格标签
-            styleLabels = data['LLM 风格分析']?.style_labels || [];
-            renderStyleLabels();
+            styleLabels = llmAnalysis?.style_labels || [];
+            if (styleLabels.length === 0 && llmAnalysis?.error) {
+                // 如果没有风格标签且有错误，显示提示
+                const styleTagsContainer = document.getElementById('styleTagsContainer');
+                styleTagsContainer.innerHTML = `<p style="color: #dc3545;">LLM 分析失败，无法获取风格标签：${llmAnalysis.error}</p>`;
+            } else {
+                renderStyleLabels();
+            }
 
             // 改写建议
             const suggestions = data['LLM 风格分析']?.rewrite_suggestions || [];
