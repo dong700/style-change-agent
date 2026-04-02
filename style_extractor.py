@@ -1,8 +1,8 @@
-"""
+﻿"""
 文章风格特征提取器
 用于从 Word 文档中提取可量化的写作风格参数
-支持中文和英文文本
-输出 JSON 格式结果到文件，包含词云统计
+仅支持中文文本
+输出 JSON 格式结果到文件
 """
 
 import os
@@ -12,11 +12,7 @@ import json
 from collections import Counter
 from typing import Dict, List, Any
 from docx import Document
-import nltk
-import textstat
 import jieba
-from nltk.tokenize import sent_tokenize, word_tokenize
-from nltk.corpus import stopwords
 
 # 尝试导入 LLM 相关库
 try:
@@ -36,65 +32,29 @@ except ImportError:
     '模型名称': 'qwen-max'
 }
 
-# 下载必要的 NLTK 资源
-def download_nltk_resources():
-    """下载 NLTK 所需的资源（只在未安装时下载）"""
-    resources = {
-        'punkt': 'tokenizers/punkt',
-        'averaged_perceptron_tagger': 'taggers/averaged_perceptron_tagger',
-        'stopwords': 'corpora/stopwords',
-        'punkt_tab': 'tokenizers/punkt_tab',
-        'averaged_perceptron_tagger_eng': 'taggers/averaged_perceptron_tagger_eng'
-    }
-    
-    for resource_name, resource_path in resources.items():
-        try:
-            nltk.data.find(resource_path)
-        except LookupError:
-            print(f"正在下载 NLTK 资源：{resource_name}...")
-            try:
-                nltk.download(resource_name, quiet=True)
-            except Exception as e:
-                print(f"下载 {resource_name} 失败：{e}")
+# NLTK 资源已移除，仅使用中文分词
 
 class StyleExtractor:
-    """文章风格特征提取器"""
+    """文章风格特征提取器（仅支持中文）"""
     
     def __init__(self, text: str):
         """
         初始化风格提取器
         
         Args:
-            text: 输入的文本内容
+            text: 输入的文本内容（中文）
         """
         self.text = text
-        # 检测是否为中文
-        self.is_chinese = any('\u4e00' <= c <= '\u9fff' for c in text)
+        # 中文分句
+        self.sentences = re.split(r'[。！？.!?]', text)
+        self.sentences = [s.strip() for s in self.sentences if s.strip()]
+        # 中文分词
+        self.words = list(jieba.cut(text))
+        self.words = [w.strip() for w in self.words if w.strip()]
+        self.words_lower = [w.lower() for w in self.words]
+        self.pos_tags = []  # 中文暂不支持词性标注
         
-        if self.is_chinese:
-            # 中文分句
-            self.sentences = re.split(r'[。！？.!?]', text)
-            self.sentences = [s.strip() for s in self.sentences if s.strip()]
-            # 中文分词
-            self.words = list(jieba.cut(text))
-            self.words = [w.strip() for w in self.words if w.strip()]
-            self.words_lower = [w.lower() for w in self.words]
-            self.pos_tags = []  # 中文暂不支持词性标注
-        else:
-            # 英文处理
-            from nltk.tokenize import word_tokenize
-            from nltk.tag import pos_tag
-            self.sentences = sent_tokenize(text)
-            self.words = word_tokenize(text)
-            self.words_lower = [w.lower() for w in self.words]
-            self.pos_tags = pos_tag(self.words)
-        
-        # 停用词（中英文）
-        try:
-            self.stop_words_en = set(stopwords.words('english'))
-        except:
-            self.stop_words_en = set()
-        
+        # 停用词（中文）
         self.stop_words_cn = {
             '的', '了', '在', '是', '我', '有', '和', '就', '不', '人',
             '都', '一', '一个', '上', '也', '很', '到', '说', '要', '去',
@@ -102,33 +62,19 @@ class StyleExtractor:
             '他', '她', '它', '们', '这个', '那个', '什么', '怎么', '可以'
         }
         
-        # 人称代词（中英文）
+        # 人称代词（中文）
         self.personal_pronouns = {
-            'i', 'me', 'my', 'mine', 'myself',
-            'you', 'your', 'yours', 'yourself', 'yourselves',
-            'he', 'him', 'his', 'himself',
-            'she', 'her', 'hers', 'herself',
-            'it', 'its', 'itself',
-            'we', 'us', 'our', 'ours', 'ourselves',
-            'they', 'them', 'their', 'theirs', 'themselves',
             '我', '你', '他', '她', '它', '我们', '你们', '他们', '她们', '它们',
             '我的', '你的', '他的', '她的', '它的', '我们的', '你们的', '他们的', '她们的', '它们的'
         }
         
-        # 情态动词（中英文）
+        # 情态动词（中文）
         self.modal_verbs = {
-            'can', 'could', 'may', 'might', 'must', 'shall', 
-            'should', 'will', 'would', 'ought',
             '能', '能够', '可以', '可能', '会', '应该', '必须', '将', '要', '愿', '肯', '敢'
         }
         
-        # 连词（中英文）
+        # 连词（中文）
         self.conjunctions = {
-            'and', 'but', 'or', 'nor', 'for', 'so', 'yet',
-            'although', 'because', 'if', 'since', 'unless', 'until',
-            'when', 'while', 'after', 'before', 'as', 'though',
-            'however', 'therefore', 'thus', 'consequently', 'moreover',
-            'furthermore', 'nevertheless', 'nonetheless', 'whereas', 'whether',
             '和', '与', '及', '或', '但', '但是', '而', '而且', '并且', '如果',
             '虽然', '因为', '所以', '因此', '于是', '然而', '可是', '尽管', '即使', '既然'
         }
@@ -144,7 +90,7 @@ class StyleExtractor:
             包含句法特征的字典
         """
         # 平均句长（词数）
-        sentence_lengths = [len(word_tokenize(sent)) for sent in self.sentences]
+        sentence_lengths = [len(sent) for sent in self.sentences]
         avg_sentence_length = statistics.mean(sentence_lengths) if sentence_lengths else 0
         
         # 句长标准差
@@ -154,8 +100,7 @@ class StyleExtractor:
         clause_counts = []
         for sent in self.sentences:
             # 通过逗号和连词估算从句数
-            words = word_tokenize(sent)
-            conjunction_count = sum(1 for w in words if w.lower() in self.conjunctions)
+            conjunction_count = sum(1 for w in self.words if w in self.conjunctions)
             comma_count = sent.count(',')
             clause_count = 1 + conjunction_count + (comma_count / 2)
             clause_counts.append(clause_count)
@@ -185,20 +130,11 @@ class StyleExtractor:
         unique_words = set(self.words_lower)
         lexical_richness = len(unique_words) / len(self.words) if self.words else 0
         
-        # 词性分布
-        if self.pos_tags:
-            pos_counts = Counter([tag for word, tag in self.pos_tags])
-            total_pos = sum(pos_counts.values())
-            pos_distribution = {tag: round(count / total_pos * 100, 2) for tag, count in pos_counts.items()}
-        else:
-            pos_distribution = {}
+        # 词性分布（中文暂不支持）
+        pos_distribution = {}
         
         # 高频词占比
-        if self.is_chinese:
-            content_words = [w for w in self.words_lower if w and w not in self.stop_words_cn]
-        else:
-            content_words = [w for w in self.words_lower if w.isalpha()]
-        
+        content_words = [w for w in self.words_lower if w and w not in self.stop_words_cn]
         common_word_count = sum(1 for w in content_words if w in self.common_words)
         common_word_ratio = (common_word_count / len(content_words) * 100) if content_words else 0
         
@@ -225,33 +161,13 @@ class StyleExtractor:
         Returns:
             包含可读性特征的字典
         """
-        # Flesch-Kincaid 等级（仅适用于英文）
-        if self.is_chinese:
-            # 中文使用简单的可读性指标：平均句长和生字词比例
-            fk_grade = len(self.text) / len(self.sentences) if self.sentences else 0
-        else:
-            try:
-                fk_grade = textstat.flesch_kincaid_grade(self.text)
-            except:
-                fk_grade = 0
+        # 中文使用简单的可读性指标：平均句长
+        fk_grade = len(self.text) / len(self.sentences) if self.sentences else 0
         
-        # 被动语态比例
-        if not self.is_chinese and self.pos_tags:
-            passive_count = 0
-            for i, (word, tag) in enumerate(self.pos_tags):
-                # 被动语态通常包含 be 动词 + 过去分词 (VBN)
-                if tag in ['VBN', 'VBD'] and i > 0:
-                    prev_word, prev_tag = self.pos_tags[i-1]
-                    if prev_word.lower() in ['be', 'is', 'are', 'was', 'were', 'been', 'being', 'am']:
-                        passive_count += 1
-            
-            total_verbs = sum(1 for word, tag in self.pos_tags if tag.startswith('V'))
-            passive_ratio = (passive_count / total_verbs * 100) if total_verbs else 0
-        else:
-            # 中文被动语态检测（通过"被"字）
-            passive_count = self.text.count('被')
-            total_verbs = len([w for w in self.words if w in ['是', '有', '在', '被', '把', '对']])
-            passive_ratio = (passive_count / total_verbs * 100) if total_verbs else 0
+        # 被动语态比例（通过"被"字）
+        passive_count = self.text.count('被')
+        total_verbs = len([w for w in self.words if w in ['是', '有', '在', '被', '把', '对']])
+        passive_ratio = (passive_count / total_verbs * 100) if total_verbs else 0
         
         # 连词密度
         conjunction_count = sum(1 for w in self.words_lower if w in self.conjunctions)
@@ -271,29 +187,14 @@ class StyleExtractor:
             包含韵律特征的字典
         """
         # 平均词长（字符数）
-        if self.is_chinese:
-            word_lengths = [len(w) for w in self.words if w and any('\u4e00' <= c <= '\u9fff' for c in w)]
-        else:
-            word_lengths = [len(w) for w in self.words if w.isalpha()]
-        
+        word_lengths = [len(w) for w in self.words if w and any('\u4e00' <= c <= '\u9fff' for c in w)]
         avg_word_length = statistics.mean(word_lengths) if word_lengths else 0
         
         # 音节数分布（中文以字为单位，每个汉字一个音节）
-        if self.is_chinese:
-            # 中文字符数即为音节数
-            chinese_chars = [c for c in self.text if '\u4e00' <= c <= '\u9fff']
-            syllable_counts = [1] * len(chinese_chars)
-            avg_syllables = 1.0
-        else:
-            syllable_counts = []
-            for word in self.words:
-                if word.isalpha():
-                    try:
-                        syllables = textstat.syllable_count(word)
-                        syllable_counts.append(syllables)
-                    except:
-                        syllable_counts.append(1)
-            avg_syllables = statistics.mean(syllable_counts) if syllable_counts else 0
+        # 中文字符数即为音节数
+        chinese_chars = [c for c in self.text if '\u4e00' <= c <= '\u9fff']
+        syllable_counts = [1] * len(chinese_chars)
+        avg_syllables = 1.0
         
         # 分布统计
         if syllable_counts:
@@ -327,7 +228,9 @@ class StyleExtractor:
         # 段落平均句数
         paragraph_sentence_counts = []
         for para in paragraphs:
-            para_sentences = sent_tokenize(para)
+            # 中文分句
+            para_sentences = re.split(r'[。！？.!?]', para)
+            para_sentences = [s.strip() for s in para_sentences if s.strip()]
             paragraph_sentence_counts.append(len(para_sentences))
         
         avg_sentences_per_para = statistics.mean(paragraph_sentence_counts) if paragraph_sentence_counts else 0
@@ -365,16 +268,10 @@ class StyleExtractor:
             词频字典
         """
         # 只过滤停用词和标点，保留所有内容
-        if self.is_chinese:
-            filtered_words = [
-                w for w in self.words_lower 
-                if w and w not in self.stop_words_cn and len(w) > 1
-            ]
-        else:
-            filtered_words = [
-                w for w in self.words_lower 
-                if w.isalpha() and w not in self.stop_words_en
-            ]
+        filtered_words = [
+            w for w in self.words_lower 
+            if w and w not in self.stop_words_cn and len(w) > 1
+        ]
         
         # 统计词频，直接返回，不做任何过滤
         word_counts = Counter(filtered_words)
@@ -842,10 +739,6 @@ def print_style_report(features: Dict[str, Any]) -> None:
 
 def main():
     """主函数"""
-    # 下载 NLTK 资源
-    print("正在下载 NLTK 资源...")
-    download_nltk_resources()
-    
     # 使用配置项中的目录
     示例目录 = 配置['示例目录']
     输出目录 = 配置['输出目录']

@@ -7,8 +7,6 @@ Werkzeug>=2.3.0         # WSGI 工具
 # 基础依赖
 python-docx>=1.2.0        # Word 文档处理
 jieba>=0.42.1             # 中文分词
-nltk>=3.9.4               # 英文自然语言处理
-textstat>=0.7.13          # 可读性计算
 
 # 词云生成（可选，用于生成词云图）
 wordcloud>=1.9.0          # 词云生成
@@ -19,7 +17,7 @@ langchain-community>=0.4.1  # LangChain 社区版，提供通义千问接口
 
 # 安装说明：
 # 1. 基础安装（仅可量化特征）：
-#    pip install Flask Werkzeug python-docx jieba nltk textstat
+#    pip install Flask Werkzeug python-docx jieba
 #
 # 2. 完整安装（包含词云和 LLM 分析）：
 #    pip install -r requirements.txt

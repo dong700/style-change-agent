@@ -3,8 +3,6 @@
 # 基础依赖
 python-docx>=1.2.0
 jieba>=0.42.1
-nltk>=3.9.4
-textstat>=0.7.13
 langchain-community>=0.4.1
 
 # Web 框架
