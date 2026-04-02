@@ -1,0 +1,1290 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文章风格深度分析系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .upload-section {
+            background: white;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 10px;
+            padding: 60px 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .upload-area:hover {
+            background: #f8f9ff;
+            border-color: #764ba2;
+        }
+
+        .upload-area.dragover {
+            background: #eef2ff;
+            border-color: #764ba2;
+        }
+
+        .upload-icon {
+            font-size: 4em;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .upload-text {
+            font-size: 1.2em;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .upload-hint {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-add {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        }
+
+        .btn-save {
+            background: linear-gradient(135deg, #28a745 0%, #218838 100%);
+        }
+
+        .btn-delete {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            padding: 5px 10px;
+            font-size: 0.85em;
+        }
+
+        .btn-edit {
+            background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
+            color: #333;
+            padding: 5px 10px;
+            font-size: 0.85em;
+        }
+
+        .btn-rewrite {
+            background: linear-gradient(135deg, #17a2b8 0%, #117a8b 100%);
+        }
+
+        .btn-rewrite:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results-section {
+            display: none;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .results-section.active {
+            display: block;
+        }
+
+        .results-header {
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        .results-header h2 {
+            color: #667eea;
+            font-size: 2em;
+        }
+
+        .file-info {
+            color: #666;
+            margin-top: 10px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            background: #f8f9ff;
+            border: 2px solid #667eea;
+            color: #667eea;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: transparent;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .feature-card {
+            background: #f8f9ff;
+            border-radius: 10px;
+            padding: 20px;
+            border-left: 4px solid #667eea;
+        }
+
+        .feature-card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .feature-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .feature-item:last-child {
+            border-bottom: none;
+        }
+
+        .feature-label {
+            color: #555;
+        }
+
+        .feature-value {
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .overall-summary {
+            background: linear-gradient(135deg, #f8f9ff 0%, #eef2ff 100%);
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+        }
+
+        .overall-summary h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1.3em;
+        }
+
+        .overall-summary p {
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .style-labels {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .style-tag {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            position: relative;
+            transition: all 0.3s;
+        }
+
+        .style-tag:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .style-tag-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .style-tag-name {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+
+        .style-tag-score {
+            background: rgba(255,255,255,0.3);
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.9em;
+        }
+
+        .style-tag-guidance {
+            font-size: 0.95em;
+            opacity: 0.95;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .style-tag-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+        }
+
+        .style-tag-actions button {
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .style-tag-actions button:hover {
+            transform: scale(1.05);
+        }
+
+        .word-frequency {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .word-tag {
+            background: #f0f0f0;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .word-tag .count {
+            background: #667eea;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.8em;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+
+        .loading.active {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            font-size: 1.5em;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            color: #555;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            font-family: inherit;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 25px;
+        }
+
+        .rewrite-suggestions {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 25px;
+        }
+
+        .rewrite-suggestions h3 {
+            color: #856404;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+
+        .rewrite-suggestions ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .rewrite-suggestions li {
+            padding: 8px 0;
+            padding-left: 25px;
+            position: relative;
+            color: #856404;
+        }
+
+        .rewrite-suggestions li:before {
+            content: "💡";
+            position: absolute;
+            left: 0;
+        }
+
+        .editable {
+            cursor: pointer;
+            padding: 2px 5px;
+            border-radius: 3px;
+            transition: all 0.2s;
+        }
+
+        .editable:hover {
+            background: #fff3cd;
+        }
+
+        .editable input {
+            width: 80px;
+            padding: 2px 5px;
+            border: 1px solid #667eea;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📝 文章风格深度分析系统</h1>
+            <p>上传 Word 文档，深度分析写作风格，支持自定义调整</p>
+        </header>
+
+        <!-- 上传区域 -->
+        <section class="upload-section">
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📄</div>
+                <div class="upload-text">点击或拖拽上传 Word 文档</div>
+                <div class="upload-hint">支持 .docx 格式，最大 16MB</div>
+                <button class="btn" onclick="document.getElementById('fileInput').click()">选择文件</button>
+                <input type="file" id="fileInput" accept=".docx">
+            </div>
+            <div id="fileName" style="margin-top: 15px; color: #667eea; font-weight: bold;"></div>
+        </section>
+
+        <!-- 加载动画 -->
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <div style="color: white; font-size: 1.2em;">正在深度分析文章风格...</div>
+            <div style="color: white; opacity: 0.8; margin-top: 10px;">这可能需要 10-20 秒</div>
+        </div>
+
+        <!-- 结果展示区域 -->
+        <section class="results-section" id="results">
+            <div class="results-header">
+                <h2>📊 分析结果</h2>
+                <div class="file-info" id="fileInfo"></div>
+            </div>
+
+            <!-- 标签页 -->
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('style')">🎯 风格标签</button>
+                <button class="tab-btn" onclick="switchTab('rewrite')">✍️ 文章改写</button>
+                <button class="tab-btn" onclick="switchTab('basic')">📄 基本信息</button>
+                <button class="tab-btn" onclick="switchTab('syntax')">🔤 句法特征</button>
+                <button class="tab-btn" onclick="switchTab('lexical')">📚 词汇特征</button>
+                <button class="tab-btn" onclick="switchTab('readability')">📖 可读性</button>
+                <button class="tab-btn" onclick="switchTab('words')">📊 词频统计</button>
+            </div>
+
+            <!-- 风格标签（核心） -->
+            <div class="tab-content active" id="tab-style">
+                <div class="overall-summary">
+                    <h3>📋 整体风格概述</h3>
+                    <p id="overallSummary">加载中...</p>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="color: #667eea;">🏷️ 风格标签</h3>
+                    <button class="btn btn-add" onclick="showAddModal()">➕ 添加新风格</button>
+                </div>
+                <div class="style-labels" id="styleLabels">
+                    <!-- 动态生成 -->
+                </div>
+
+                <!-- 改写建议 -->
+                <div class="rewrite-suggestions" id="rewriteSuggestions">
+                    <h3>💡 改写建议</h3>
+                    <ul id="rewriteSuggestionsList">
+                        <!-- 动态生成 -->
+                    </ul>
+                </div>
+
+                <!-- 保存按钮 -->
+                <div style="text-align: center; margin-top: 30px;">
+                    <button class="btn btn-save" onclick="saveAllChanges()">💾 保存所有修改</button>
+                </div>
+            </div>
+
+            <!-- 文章改写 -->
+            <div class="tab-content" id="tab-rewrite">
+                <div class="feature-card" style="margin-bottom: 20px;">
+                    <h3>✍️ 文章改写</h3>
+                    <p style="color: #666; margin-bottom: 20px;">将目标文章改写成与示例风格相似的文本</p>
+                    
+                    <!-- 上传 Word 文档 -->
+                    <div style="margin-bottom: 20px; padding: 20px; background: #f8f9ff; border-radius: 8px;">
+                        <h4 style="color: #667eea; margin-bottom: 10px;">📄 方式一：上传 Word 文档</h4>
+                        <div style="border: 2px dashed #667eea; border-radius: 8px; padding: 30px; text-align: center; cursor: pointer;" 
+                             id="rewriteUploadArea"
+                             onclick="document.getElementById('rewriteFileInput').click()">
+                            <div style="font-size: 2em; color: #667eea; margin-bottom: 10px;">📁</div>
+                            <div style="color: #333;">点击或拖拽上传 Word 文档</div>
+                            <div style="color: #666; font-size: 0.9em; margin-top: 5px;">支持 .docx 格式</div>
+                            <input type="file" id="rewriteFileInput" accept=".docx" style="display: none;" onchange="handleRewriteFileUpload(event)">
+                        </div>
+                        <div id="rewriteFileName" style="margin-top: 10px; color: #667eea; font-weight: bold;"></div>
+                    </div>
+                    
+                    <div style="text-align: center; margin: 20px 0; color: #999;">— 或 —</div>
+                    
+                    <!-- 手动输入文本 -->
+                    <div class="form-group">
+                        <label>📝 方式二：粘贴文本</label>
+                        <textarea id="rewriteTargetText" placeholder="请粘贴需要改写的文章内容..." style="min-height: 200px;"></textarea>
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                        <button class="btn btn-rewrite" id="rewriteButton" onclick="doRewrite()">🚀 开始改写</button>
+                        <button class="btn" onclick="clearRewrite()">🗑️ 清空</button>
+                    </div>
+                    
+                    <div id="rewriteResult" style="display: none;">
+                        <h4 style="color: #667eea; margin-bottom: 15px;">📊 改写结果</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                            <div>
+                                <h5 style="color: #555; margin-bottom: 10px;">原文（<span id="originalLength">0</span> 字）</h5>
+                                <div id="originalText" style="background: #f8f9ff; padding: 15px; border-radius: 8px; max-height: 400px; overflow-y: auto;"></div>
+                            </div>
+                            <div>
+                                <h5 style="color: #555; margin-bottom: 10px;">改写后（<span id="rewrittenLength">0</span> 字）</h5>
+                                <div id="rewrittenText" style="background: #e8f5e9; padding: 15px; border-radius: 8px; max-height: 400px; overflow-y: auto;"></div>
+                            </div>
+                        </div>
+                        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                            <strong>📈 统计信息：</strong>
+                            <span id="rewriteStats"></span>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="btn btn-save" onclick="copyRewrittenText()">📋 复制改写结果</button>
+                            <button class="btn btn-rewrite" onclick="exportToWord()">📄 导出 Word</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 基本信息 -->
+            <div class="tab-content" id="tab-basic">
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h3>📄 文档信息</h3>
+                        <div class="feature-item">
+                            <span class="feature-label">文件名</span>
+                            <span class="feature-value" id="basic-filename">-</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="feature-label">总词数</span>
+                            <span class="feature-value editable" id="basic-total-words" data-key="基本信息。总词数">-</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="feature-label">总句数</span>
+                            <span class="feature-value editable" id="basic-total-sentences" data-key="基本信息。总句数">-</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="feature-label">段落数</span>
+                            <span class="feature-value editable" id="basic-paragraphs" data-key="基本信息。段落数">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 句法特征 -->
+            <div class="tab-content" id="tab-syntax">
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h3>🔤 句法特征</h3>
+                        <div class="feature-item">
+                            <span class="feature-label">平均句长</span>
+                            <span class="feature-value editable" id="syntax-avg-length" data-key="句法特征。平均句长">-</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="feature-label">句长标准差</span>
+                            <span class="feature-value editable" id="syntax-std" data-key="句法特征。句长标准差">-</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="feature-label">平均从句数</span>
+                            <span class="feature-value editable" id="syntax-clauses" data-key="句法特征。平均从句数">-</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="feature-label">标点密度</span>
+                            <span class="feature-value editable" id="syntax-punctuation" data-key="句法特征。标点密度">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 词汇特征 -->
+            <div class="tab-content" id="tab-lexical">
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h3>📚 词汇特征</h3>
+                        <div class="feature-item">
+                            <span class="feature-label">词汇丰富度</span>
+                            <span class="feature-value editable" id="lexical-richness" data-key="词汇特征。词汇丰富度">-</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="feature-label">高频词占比</span>
+                            <span class="feature-value editable" id="lexical-common" data-key="词汇特征。高频词占比">-</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="feature-label">人称代词占比</span>
+                            <span class="feature-value editable" id="lexical-pronoun" data-key="词汇特征。人称代词占比">-</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="feature-label">情态动词密度</span>
+                            <span class="feature-value editable" id="lexical-modal" data-key="词汇特征。情态动词密度">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 可读性 -->
+            <div class="tab-content" id="tab-readability">
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h3>📖 可读性特征</h3>
+                        <div class="feature-item">
+                            <span class="feature-label">Flesch-Kincaid 等级</span>
+                            <span class="feature-value editable" id="readability-fk" data-key="可读性特征.Flesch-Kincaid 等级">-</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="feature-label">被动语态比例</span>
+                            <span class="feature-value editable" id="readability-passive" data-key="可读性特征。被动语态比例">-</span>
+                        </div>
+                        <div class="feature-item">
+                            <span class="feature-label">连词密度</span>
+                            <span class="feature-value editable" id="readability-conjunction" data-key="可读性特征。连词密度">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 词频统计 -->
+            <div class="tab-content" id="tab-words">
+                <div class="feature-card">
+                    <h3>📊 词频统计（风格词）</h3>
+                    <div class="word-frequency" id="wordFrequency">
+                        <!-- 动态生成 -->
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- 添加/编辑风格标签的模态框 -->
+    <div class="modal" id="styleModal">
+        <div class="modal-content">
+            <div class="modal-header" id="modalHeader">添加新风格</div>
+            <div class="form-group">
+                <label>风格标签名称</label>
+                <input type="text" id="modalLabel" placeholder="如：正式学术、口语化叙述、古风典雅">
+            </div>
+            <div class="form-group">
+                <label>强度评分 (1-5)</label>
+                <input type="number" id="modalScore" min="1" max="5" value="3">
+            </div>
+            <div class="form-group">
+                <label>改写指导建议</label>
+                <textarea id="modalGuidance" placeholder="请描述如何在改写时体现这种风格，如：使用短句，平均句长控制在 10 字以内..."></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="btn" onclick="closeModal()">取消</button>
+                <button class="btn btn-save" onclick="confirmModal()">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentData = null;
+        let editingIndex = -1;
+        let styleLabels = [];
+
+        // 拖拽上传
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        uploadArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            document.getElementById('fileName').textContent = `选中文件：${file.name}`;
+            uploadFile(file);
+        }
+
+        function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('results').classList.remove('active');
+
+            fetch('/api/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('loading').classList.remove('active');
+                if (data.success) {
+                    currentData = data.data;
+                    displayResults(data.data);
+                } else {
+                    alert('分析失败：' + data.error);
+                }
+            })
+            .catch(error => {
+                document.getElementById('loading').classList.remove('active');
+                alert('上传失败：' + error);
+            });
+        }
+
+        function displayResults(data) {
+            document.getElementById('results').classList.add('active');
+            
+            // 文件信息
+            const originalFilename = data.original_filename || '未知';
+            const totalWords = data['基本信息']?.总词数 || 0;
+            document.getElementById('fileInfo').textContent = 
+                `文件：${originalFilename} | 总词数：${totalWords} | 分析时间：${new Date().toLocaleString()}`;
+
+            // 基本信息
+            document.getElementById('basic-filename').textContent = originalFilename;
+            document.getElementById('basic-total-words').textContent = data['基本信息']?.总词数 || 0;
+            document.getElementById('basic-total-sentences').textContent = data['基本信息']?.总句数 || 0;
+            document.getElementById('basic-paragraphs').textContent = data['基本信息']?.段落数 || 0;
+
+            // 句法特征
+            const syntax = data['句法特征'] || {};
+            document.getElementById('syntax-avg-length').textContent = syntax['平均句长'] || 0;
+            document.getElementById('syntax-std').textContent = syntax['句长标准差'] || 0;
+            document.getElementById('syntax-clauses').textContent = syntax['平均从句数'] || 0;
+            document.getElementById('syntax-punctuation').textContent = syntax['标点密度'] || 0;
+
+            // 词汇特征
+            const lexical = data['词汇特征'] || {};
+            document.getElementById('lexical-richness').textContent = (lexical['词汇丰富度'] || 0).toFixed(4);
+            document.getElementById('lexical-common').textContent = (lexical['高频词占比'] || 0).toFixed(2) + '%';
+            document.getElementById('lexical-pronoun').textContent = (lexical['人称代词占比'] || 0).toFixed(2) + '%';
+            document.getElementById('lexical-modal').textContent = (lexical['情态动词密度'] || 0).toFixed(2) + '%';
+
+            // 可读性
+            const readability = data['可读性特征'] || {};
+            document.getElementById('readability-fk').textContent = (readability['Flesch-Kincaid 等级'] || 0).toFixed(2);
+            document.getElementById('readability-passive').textContent = (readability['被动语态比例'] || 0).toFixed(2) + '%';
+            document.getElementById('readability-conjunction').textContent = (readability['连词密度'] || 0).toFixed(2) + '%';
+
+            // 整体风格概述
+            const overallSummary = data['LLM 风格分析']?.overall_style_summary || '暂无整体风格概述';
+            document.getElementById('overallSummary').textContent = overallSummary;
+
+            // 风格标签
+            styleLabels = data['LLM 风格分析']?.style_labels || [];
+            renderStyleLabels();
+
+            // 改写建议
+            const suggestions = data['LLM 风格分析']?.rewrite_suggestions || [];
+            const suggestionsList = document.getElementById('rewriteSuggestionsList');
+            suggestionsList.innerHTML = '';
+            if (suggestions.length > 0) {
+                suggestions.forEach(suggestion => {
+                    const li = document.createElement('li');
+                    li.textContent = suggestion;
+                    suggestionsList.appendChild(li);
+                });
+            } else {
+                suggestionsList.innerHTML = '<li>暂无改写建议</li>';
+            }
+
+            // 词频统计
+            const wordFreq = data['词频统计'] || {};
+            const wordContainer = document.getElementById('wordFrequency');
+            wordContainer.innerHTML = '';
+            Object.entries(wordFreq).slice(0, 50).forEach(([word, count]) => {
+                const tag = document.createElement('div');
+                tag.className = 'word-tag';
+                tag.innerHTML = `
+                    <span>${word}</span>
+                    <span class="count">${count}</span>
+                `;
+                wordContainer.appendChild(tag);
+            });
+        }
+
+        function switchTab(tabName) {
+            // 隐藏所有标签页
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // 显示选中的标签页
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function renderStyleLabels() {
+            const styleContainer = document.getElementById('styleLabels');
+            styleContainer.innerHTML = '';
+            
+            styleLabels.forEach((label, index) => {
+                const tag = document.createElement('div');
+                tag.className = 'style-tag';
+                tag.innerHTML = `
+                    <div class="style-tag-header">
+                        <span class="style-tag-name">${label.label}</span>
+                        <span class="style-tag-score">⭐ ${label.score}/5</span>
+                    </div>
+                    <div class="style-tag-guidance">${label.guidance || ''}</div>
+                    <div class="style-tag-actions">
+                        <button class="btn btn-edit" onclick="editStyle(${index})">✏️ 编辑</button>
+                        <button class="btn btn-delete" onclick="deleteStyle(${index})">🗑️ 删除</button>
+                    </div>
+                `;
+                styleContainer.appendChild(tag);
+            });
+        }
+
+        function showAddModal() {
+            editingIndex = -1;
+            document.getElementById('modalHeader').textContent = '添加新风格';
+            document.getElementById('modalLabel').value = '';
+            document.getElementById('modalScore').value = '3';
+            document.getElementById('modalGuidance').value = '';
+            document.getElementById('styleModal').classList.add('active');
+        }
+
+        function editStyle(index) {
+            editingIndex = index;
+            const label = styleLabels[index];
+            document.getElementById('modalHeader').textContent = '编辑风格标签';
+            document.getElementById('modalLabel').value = label.label;
+            document.getElementById('modalScore').value = label.score;
+            document.getElementById('modalGuidance').value = label.guidance || '';
+            document.getElementById('styleModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('styleModal').classList.remove('active');
+            editingIndex = -1;
+        }
+
+        function confirmModal() {
+            const label = document.getElementById('modalLabel').value.trim();
+            const score = parseInt(document.getElementById('modalScore').value);
+            const guidance = document.getElementById('modalGuidance').value.trim();
+
+            if (!label) {
+                alert('请输入风格标签名称');
+                return;
+            }
+
+            if (score < 1 || score > 5) {
+                alert('评分必须在 1-5 之间');
+                return;
+            }
+
+            if (editingIndex === -1) {
+                // 添加新风格
+                styleLabels.push({ label, score, guidance });
+            } else {
+                // 编辑现有风格
+                styleLabels[editingIndex] = { label, score, guidance };
+            }
+
+            renderStyleLabels();
+            closeModal();
+        }
+
+        // 文章改写相关函数
+        let rewriteUploadedFile = null;
+        
+        // 处理文件上传
+        function handleRewriteFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                rewriteUploadedFile = file;
+                document.getElementById('rewriteFileName').textContent = `选中文件：${file.name}`;
+            }
+        }
+        
+        // 设置拖拽上传
+        const rewriteUploadArea = document.getElementById('rewriteUploadArea');
+        if (rewriteUploadArea) {
+            rewriteUploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                rewriteUploadArea.style.background = '#eef2ff';
+                rewriteUploadArea.style.borderColor = '#764ba2';
+            });
+            
+            rewriteUploadArea.addEventListener('dragleave', () => {
+                rewriteUploadArea.style.background = '';
+                rewriteUploadArea.style.borderColor = '';
+            });
+            
+            rewriteUploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                rewriteUploadArea.style.background = '';
+                rewriteUploadArea.style.borderColor = '';
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    rewriteUploadedFile = files[0];
+                    document.getElementById('rewriteFileName').textContent = `选中文件：${files[0].name}`;
+                }
+            });
+        }
+
+        function doRewrite() {
+            const targetText = document.getElementById('rewriteTargetText').value.trim();
+            
+            // 检查是否有上传的文件或输入的文本
+            if (!rewriteUploadedFile && !targetText) {
+                alert('请上传 Word 文档或粘贴目标文章');
+                return;
+            }
+
+            if (styleLabels.length === 0) {
+                alert('没有可用的风格标签，请先分析文档或添加风格标签');
+                return;
+            }
+
+            // 获取风格词频和量化特征
+            const wordFreq = currentData?.['词频统计'] || {};
+            const quantitativeFeatures = {
+                '句法特征': currentData?.['句法特征'] || {},
+                '词汇特征': currentData?.['词汇特征'] || {},
+                '可读性特征': currentData?.['可读性特征'] || {}
+            };
+
+            // 设置加载状态
+            const rewriteBtn = document.getElementById('rewriteButton');
+            const originalBtnText = rewriteBtn.innerHTML;
+            rewriteBtn.innerHTML = '<span class="loading-spinner"></span>改写中...';
+            rewriteBtn.disabled = true;
+
+            // 如果有上传的文件，使用文件上传 API
+            if (rewriteUploadedFile) {
+                const formData = new FormData();
+                formData.append('file', rewriteUploadedFile);
+                formData.append('style_labels', JSON.stringify(styleLabels));
+                formData.append('style_words', JSON.stringify(wordFreq));
+                formData.append('quantitative_features', JSON.stringify(quantitativeFeatures));
+
+                fetch('/api/rewrite_from_file', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // 恢复按钮状态
+                    rewriteBtn.innerHTML = originalBtnText;
+                    rewriteBtn.disabled = false;
+                    
+                    if (data.success) {
+                        displayRewriteResult(data.data);
+                    } else {
+                        alert('改写失败：' + data.error);
+                    }
+                })
+                .catch(error => {
+                    // 恢复按钮状态
+                    rewriteBtn.innerHTML = originalBtnText;
+                    rewriteBtn.disabled = false;
+                    alert('改写失败：' + error);
+                });
+            } else {
+                // 使用文本输入 API
+                fetch('/api/rewrite', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        target_text: targetText,
+                        style_labels: styleLabels,
+                        style_words: wordFreq,
+                        quantitative_features: quantitativeFeatures
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // 恢复按钮状态
+                    rewriteBtn.innerHTML = originalBtnText;
+                    rewriteBtn.disabled = false;
+                    
+                    if (data.success) {
+                        displayRewriteResult(data.data);
+                    } else {
+                        alert('改写失败：' + data.error);
+                    }
+                })
+                .catch(error => {
+                    // 恢复按钮状态
+                    rewriteBtn.innerHTML = originalBtnText;
+                    rewriteBtn.disabled = false;
+                    alert('改写失败：' + error);
+                });
+            }
+        }
+
+        function displayRewriteResult(result) {
+            document.getElementById('rewriteResult').style.display = 'block';
+            document.getElementById('originalText').textContent = result.original;
+            document.getElementById('rewrittenText').textContent = result.rewritten;
+            document.getElementById('originalLength').textContent = result.original_length;
+            document.getElementById('rewrittenLength').textContent = result.rewritten_length;
+            
+            const ratio = (result.length_ratio * 100).toFixed(1);
+            document.getElementById('rewriteStats').textContent = 
+                `长度比例：${ratio}%（改写后/原文）`;
+            
+            // 滚动到结果区域
+            document.getElementById('rewriteResult').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function clearRewrite() {
+            document.getElementById('rewriteTargetText').value = '';
+            document.getElementById('rewriteResult').style.display = 'none';
+            rewriteUploadedFile = null;
+            document.getElementById('rewriteFileName').textContent = '';
+            document.getElementById('rewriteFileInput').value = '';
+        }
+
+        function copyRewrittenText() {
+            const text = document.getElementById('rewrittenText').textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                alert('✅ 已复制到剪贴板');
+            }).catch(err => {
+                alert('复制失败：' + err);
+            });
+        }
+
+        function exportToWord() {
+            const rewrittenText = document.getElementById('rewrittenText').textContent;
+            const originalText = document.getElementById('originalText').textContent;
+            
+            if (!rewrittenText) {
+                alert('没有可导出的内容');
+                return;
+            }
+
+            // 获取文件名（如果有上传文件则使用上传的文件名）
+            let filename = '改写结果';
+            if (rewriteUploadedFile) {
+                filename = rewriteUploadedFile.name;
+            } else if (currentData && currentData.original_filename) {
+                filename = currentData.original_filename;
+            }
+
+            // 发送导出请求
+            fetch('/api/export_word', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    rewritten_text: rewrittenText,
+                    original_text: originalText,
+                    filename: filename
+                })
+            })
+            .then(response => {
+                if (response.ok) {
+                    // 触发文件下载
+                    return response.blob();
+                } else {
+                    return response.json().then(data => {
+                        throw new Error(data.error || '导出失败');
+                    });
+                }
+            })
+            .then(blob => {
+                // 创建下载链接
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${filename.replace('.docx', '')}_改写版.docx`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                alert('✅ 导出成功！');
+            })
+            .catch(error => {
+                alert('导出失败：' + error.message);
+            });
+        }
+
+        function deleteStyle(index) {
+            if (confirm('确定要删除这个风格标签吗？')) {
+                styleLabels.splice(index, 1);
+                renderStyleLabels();
+            }
+        }
+
+        function saveAllChanges() {
+            if (!currentData) {
+                alert('请先上传文档');
+                return;
+            }
+
+            // 收集所有可编辑字段的修改
+            const modifiedFeatures = {};
+            document.querySelectorAll('.editable').forEach(el => {
+                const key = el.dataset.key;
+                if (key) {
+                    const value = el.textContent.trim();
+                    const keys = key.split('.');
+                    let obj = modifiedFeatures;
+                    keys.forEach((k, i) => {
+                        if (i === keys.length - 1) {
+                            obj[k] = isNaN(value) ? value : parseFloat(value);
+                        } else {
+                            obj[k] = obj[k] || {};
+                            obj = obj[k];
+                        }
+                    });
+                }
+            });
+
+            // 更新 LLM 风格分析数据
+            const modifiedData = {
+                ...currentData,
+                ...modifiedFeatures,
+                'LLM 风格分析': {
+                    ...currentData['LLM 风格分析'],
+                    style_labels: styleLabels
+                }
+            };
+
+            // 发送到后端保存
+            fetch('/api/modify_style', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    features: modifiedData
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ 修改已保存！');
+                    currentData = modifiedData;
+                    // 重新显示更新后的数据
+                    displayResults(currentData);
+                } else {
+                    alert('保存失败：' + data.error);
+                }
+            })
+            .catch(error => {
+                alert('保存失败：' + error);
+            });
+        }
+    </script>
+</body>
+</html>

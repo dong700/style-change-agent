@@ -1,0 +1,30 @@
+# 文章风格提取器依赖包清单
+
+# Web 应用依赖
+Flask>=2.3.0            # Web 框架
+Werkzeug>=2.3.0         # WSGI 工具
+
+# 基础依赖
+python-docx>=1.2.0        # Word 文档处理
+jieba>=0.42.1             # 中文分词
+nltk>=3.9.4               # 英文自然语言处理
+textstat>=0.7.13          # 可读性计算
+
+# 词云生成（可选，用于生成词云图）
+wordcloud>=1.9.0          # 词云生成
+matplotlib>=3.8.0         # 绘图库
+
+# LLM 分析依赖（可选，用于风格标签分析）
+langchain-community>=0.4.1  # LangChain 社区版，提供通义千问接口
+
+# 安装说明：
+# 1. 基础安装（仅可量化特征）：
+#    pip install Flask Werkzeug python-docx jieba nltk textstat
+#
+# 2. 完整安装（包含词云和 LLM 分析）：
+#    pip install -r requirements.txt
+#
+# 注意：使用 LLM 功能需要配置通义千问 API 密钥
+# 环境变量设置：
+#   - Windows: set DASHSCOPE_API_KEY=your_api_key
+#   - Linux/Mac: export DASHSCOPE_API_KEY=your_api_key
