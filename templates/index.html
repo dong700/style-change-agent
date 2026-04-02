@@ -797,18 +797,7 @@
             }
         });
 
-        // 阻止 uploadArea 的点击事件冒泡，避免重复触发
-        uploadArea.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            fileInput.click();
-        });
-
-        // 阻止 fileInput 的重复触发
-        fileInput.addEventListener('click', (e) => {
-            e.stopPropagation();
-        });
-
+        // 文件选择器 change 事件
         fileInput.addEventListener('change', (e) => {
             e.preventDefault();
             e.stopPropagation();
