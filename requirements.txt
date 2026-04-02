@@ -12,8 +12,9 @@ jieba>=0.42.1             # 中文分词
 wordcloud>=1.9.0          # 词云生成
 matplotlib>=3.8.0         # 绘图库
 
-# LLM 分析依赖（可选，用于风格标签分析）
+# LLM 分析依赖（必需，用于风格标签分析）
 langchain-community>=0.4.1  # LangChain 社区版，提供通义千问接口
+dashscope>=1.14.0           # 通义千问 Python SDK（langchain-community 依赖）
 
 # 安装说明：
 # 1. 基础安装（仅可量化特征）：

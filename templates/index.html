@@ -799,11 +799,19 @@
 
         // 阻止 uploadArea 的点击事件冒泡，避免重复触发
         uploadArea.addEventListener('click', (e) => {
+            e.preventDefault();
             e.stopPropagation();
             fileInput.click();
         });
 
+        // 阻止 fileInput 的重复触发
+        fileInput.addEventListener('click', (e) => {
+            e.stopPropagation();
+        });
+
         fileInput.addEventListener('change', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
             if (e.target.files.length > 0) {
                 handleFile(e.target.files[0]);
                 // 重置 fileInput 的值，这样即使选择同一个文件也会触发 change 事件
