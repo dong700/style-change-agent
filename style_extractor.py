@@ -594,7 +594,6 @@ def analyze_document(file_path: str, use_llm: bool = False, output_dir: str = No
     if use_llm:
         try:
             # 检查 API Key 是否设置
-            import os
             api_key = os.environ.get('DASHSCOPE_API_KEY')
             if not api_key:
                 raise Exception("未设置 DASHSCOPE_API_KEY 环境变量，请检查 Railway 环境变量配置")
