@@ -26,14 +26,32 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 最大 16MB
 app.config['ALLOWED_EXTENSIONS'] = {'docx'}
 
 # 模型配置
-MODEL_CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'model_config.json')
+MODEL_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'model_config.json')
 
 def load_model_config():
     """加载模型配置"""
     try:
+        if not os.path.exists(MODEL_CONFIG_PATH):
+            # 如果配置文件不存在，创建默认配置
+            default_config = {
+                'current_model': 'qwen-max',
+                'available_models': [
+                    {'id': 'qwen-max', 'name': 'Qwen-Max'},
+                    {'id': 'qwen-plus', 'name': 'Qwen-Plus'},
+                    {'id': 'qwen-turbo', 'name': 'Qwen-Turbo'}
+                ]
+            }
+            # 确保目录存在
+            os.makedirs(os.path.dirname(MODEL_CONFIG_PATH), exist_ok=True)
+            with open(MODEL_CONFIG_PATH, 'w', encoding='utf-8') as f:
+                json.dump(default_config, f, ensure_ascii=False, indent=2)
+            return default_config
+        
         with open(MODEL_CONFIG_PATH, 'r', encoding='utf-8') as f:
             return json.load(f)
-    except:
+    except Exception as e:
+        print(f"加载模型配置失败：{e}")
+        # 返回默认配置
         return {
             'current_model': 'qwen-max',
             'available_models': [
@@ -45,8 +63,14 @@ def load_model_config():
 
 def save_model_config(config):
     """保存模型配置"""
-    with open(MODEL_CONFIG_PATH, 'w', encoding='utf-8') as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
+    try:
+        os.makedirs(os.path.dirname(MODEL_CONFIG_PATH), exist_ok=True)
+        with open(MODEL_CONFIG_PATH, 'w', encoding='utf-8') as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"保存模型配置失败：{e}")
+        return False
 
 def get_current_model():
     """获取当前使用的模型"""
