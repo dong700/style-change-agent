@@ -1049,21 +1049,121 @@
             const styleContainer = document.getElementById('styleLabels');
             styleContainer.innerHTML = '';
             
-            styleLabels.forEach((label, index) => {
-                const tag = document.createElement('div');
-                tag.className = 'style-tag';
-                tag.innerHTML = `
-                    <div class="style-tag-header">
-                        <span class="style-tag-name">${label.label}</span>
-                        <span class="style-tag-score">⭐ ${label.score}/5</span>
-                    </div>
-                    <div class="style-tag-guidance">${label.guidance || ''}</div>
-                    <div class="style-tag-actions">
-                        <button class="btn btn-edit" onclick="editStyle(${index})">✏️ 编辑</button>
-                        <button class="btn btn-delete" onclick="deleteStyle(${index})">🗑️ 删除</button>
-                    </div>
+            // 按维度分组
+            const groupedLabels = {};
+            styleLabels.forEach(label => {
+                // 提取维度名称（冒号前的部分）
+                const parts = label.label.split(':');
+                const dimension = parts.length > 1 ? parts[0].trim() : '其他';
+                const labelName = parts.length > 1 ? parts.slice(1).join(':').trim() : label.label;
+                
+                if (!groupedLabels[dimension]) {
+                    groupedLabels[dimension] = [];
+                }
+                groupedLabels[dimension].push({
+                    ...label,
+                    label: labelName,
+                    fullLabel: label.label
+                });
+            });
+            
+            // 每个维度内按评分排序
+            Object.keys(groupedLabels).forEach(dimension => {
+                groupedLabels[dimension].sort((a, b) => b.score - a.score);
+            });
+            
+            // 创建维度卡片
+            Object.keys(groupedLabels).forEach(dimension => {
+                const labels = groupedLabels[dimension];
+                const defaultShow = 2; // 默认显示 2 个
+                const isExpandable = labels.length > defaultShow;
+                
+                // 维度卡片
+                const dimensionCard = document.createElement('div');
+                dimensionCard.className = 'dimension-card';
+                dimensionCard.style.cssText = 'background: #f8f9ff; border-radius: 10px; padding: 15px; margin-bottom: 15px; border: 2px solid #e0e0e0;';
+                
+                // 维度标题
+                const dimensionHeader = document.createElement('div');
+                dimensionHeader.style.cssText = 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;';
+                dimensionHeader.innerHTML = `
+                    <h4 style="color: #667eea; margin: 0; font-size: 1.1em;">${dimension}</h4>
+                    <span style="color: #999; font-size: 0.9em;">共 ${labels.length} 个标签</span>
                 `;
-                styleContainer.appendChild(tag);
+                dimensionCard.appendChild(dimensionHeader);
+                
+                // 标签容器
+                const labelsContainer = document.createElement('div');
+                labelsContainer.className = 'dimension-labels';
+                labelsContainer.style.cssText = 'display: grid; gap: 10px;';
+                
+                // 只显示前 defaultShow 个，其他的隐藏
+                labels.forEach((label, index) => {
+                    const tag = document.createElement('div');
+                    tag.className = 'style-tag';
+                    tag.style.cssText = 'background: white; border-radius: 8px; padding: 12px; border-left: 4px solid #667eea; box-shadow: 0 2px 5px rgba(0,0,0,0.05);';
+                    
+                    if (index >= defaultShow) {
+                        tag.style.display = 'none';
+                        tag.classList.add('hidden-tag');
+                    }
+                    
+                    tag.innerHTML = `
+                        <div class="style-tag-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <span class="style-tag-name" style="font-weight: bold; color: #333; flex: 1;">${label.label}</span>
+                            <span class="style-tag-score" style="background: linear-gradient(135deg, #ffd700, #ffed4e); padding: 4px 10px; border-radius: 20px; font-weight: bold; font-size: 0.9em; color: #333;">⭐ ${label.score}/5</span>
+                        </div>
+                        ${label.guidance ? `<div class="style-tag-guidance" style="margin-top: 8px; color: #666; font-size: 0.9em; line-height: 1.5;">${label.guidance}</div>` : ''}
+                    `;
+                    labelsContainer.appendChild(tag);
+                });
+                
+                dimensionCard.appendChild(labelsContainer);
+                
+                // 展开/收起按钮
+                if (isExpandable) {
+                    const toggleBtn = document.createElement('button');
+                    toggleBtn.className = 'toggle-btn';
+                    toggleBtn.innerHTML = '查看更多 ⌄';
+                    toggleBtn.style.cssText = `
+                        margin-top: 10px;
+                        background: linear-gradient(135deg, #667eea, #764ba2);
+                        color: white;
+                        border: none;
+                        padding: 8px 20px;
+                        border-radius: 20px;
+                        cursor: pointer;
+                        font-size: 0.9em;
+                        transition: all 0.3s;
+                    `;
+                    toggleBtn.onmouseover = function() {
+                        this.style.transform = 'translateY(-2px)';
+                        this.style.boxShadow = '0 5px 15px rgba(102, 126, 234, 0.4)';
+                    };
+                    toggleBtn.onmouseout = function() {
+                        this.style.transform = 'translateY(0)';
+                        this.style.boxShadow = 'none';
+                    };
+                    
+                    let isExpanded = false;
+                    toggleBtn.onclick = function() {
+                        const hiddenTags = labelsContainer.querySelectorAll('.hidden-tag');
+                        hiddenTags.forEach(tag => {
+                            tag.style.display = isExpanded ? 'none' : 'block';
+                        });
+                        
+                        if (isExpanded) {
+                            toggleBtn.innerHTML = '查看更多 ⌄';
+                        } else {
+                            toggleBtn.innerHTML = '收起 ⌃';
+                        }
+                        isExpanded = !isExpanded;
+                    };
+                    
+                    dimensionCard.appendChild(toggleBtn);
+                }
+                
+                styleContainer.appendChild(dimensionCard);
             });
         }
 
