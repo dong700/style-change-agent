@@ -292,77 +292,49 @@ class LLMStyleAnalyzer:
             raise ImportError("langchain-community 未安装，无法使用 LLM 分析功能")
         
         self.llm = Tongyi(model=model)
-        # 深度风格分析提示词 - 专业文体分析框架
-        self.prompt_template = """你是一位资深的文体分析专家和文学批评家，具备敏锐的文本洞察力和深厚的理论素养。你擅长从多维角度解构文章的底层风格密码，揭示其叙事逻辑、语言美学、价值立场和文体策略。
+        # 多维度开放标签风格分析提示词 - 系统、全面、灵活
+        self.prompt_template = """你是一位专业的文本风格分析专家。请对以下文本进行深入、全面的风格分析。
 
-【核心任务】
-对提供的文本进行深度风格分析，系统解构其文体特征和写作范式，为后续的文本改写提供详细指导。
+【分析要求】
+1. 从以下维度逐一分析文本的风格特征（每个维度可列出 1~3 个最显著的标签，每个标签给出 1-5 分并附上文本依据）：
+   - 词汇风格：例如：口语化/书面化、古语词/现代词、抽象/具体、华丽/朴实、术语密度、叠词使用等。
+   - 句法风格：例如：长句/短句、并列/复合句、倒装/省略、重复结构、标点特色（如破折号、省略号）等。
+   - 修辞风格：例如：比喻、拟人、排比、反问、夸张、双关、对偶、反讽、借代、通感等。
+   - 语气与情感：例如：幽默、严肃、讽刺、感伤、激昂、平静、亲切、冷漠、客观、主观等。
+   - 语体与正式度：例如：公文/学术/新闻/广告/小说/日记/社交媒体，正式/半正式/非正式。
+   - 时代感与文化风格：例如：古风、现代、未来感、地域特色（如京味、东北话）、网络流行语等。
+   - 叙事风格（若适用）：例如：第一人称/第三人称、主观/客观、线性/跳跃、全知/限知视角等。
 
-【分析框架】
-一、叙事逻辑分析
-- 时间结构：线性编年/插叙倒叙/时空交织/主题切片
-- 因果关系：单因单果/多因一果/因果互构
-- 叙事视角：全知/限知/多视角转换
+2. 如果文本还有其他上述维度未覆盖的重要风格特征（如节奏快慢、画面感强、对话性强、逻辑严密、情感充沛等），请自行在"其他显著风格"字段中补充。
 
-二、语言特征分析
-- 词汇谱系：文言/白话/专业术语/形容词动词密度
-- 句式结构：长短句比例/复杂复句/对仗排比/主动被动
-- 语体特征：庄重/平实/抒情/幽默/讽刺
+3. 最后用一段话（150-250 字）总结该文本的整体风格，语言要具体、可操作，能够直接用于后续改写指导。
 
-三、修辞策略分析
-- 比喻象征：核心意象系统/比喻类型和密度
-- 评价语言：评价词强度/评价与事实结合方式
-- 引用互文：直接引用/间接引用/化用典故
+【重要原则】
+- 标签要灵活：不要局限于示例标签，根据文本实际情况选择最合适的描述词
+- 证据要充分：每个标签必须提供文本中的具体片段作为依据
+- 评分要准确：1 分=不明显，3 分=中等，5 分=非常显著
+- 避免套话：不要使用"半文半白"这类万能标签，要精准描述文本的真实特征
 
-四、文体功能分析
-- 权威建构：数据精确/文献引用/专家背书
-- 合法性论证：历史必然性/现实必要性/价值正当性
-- 价值引导：价值主张/呈现方式/冲突处理
-
-五、结构形式分析
-- 整体架构：章节体系/标题风格/内容分配逻辑
-- 信息密度：事实与阐释比例/细节描写密度
-- 视觉设计：标题层级/段落长度/图文穿插
-
-【输出要求】
-请严格按照以下 JSON 格式输出，确保内容详细、专业、有深度。**重要：请将深度分析的每个维度都转化为具体的风格标签，不要单独输出深度分析报告**。
-
+【输出格式】
+请严格按照以下 JSON 结构输出，不要添加额外解释：
 {{
-  "overall_style_summary": "150-250 字的整体风格概述，全面概括文本的风格特点、写作特色、语言风格和给人的总体印象",
-  "style_labels": [
-    {{
-      "label": "风格标签 1（2-8 个字，精准概括，如：线性编年叙事、半文半白、典故化标题、权威建构等）",
-      "score": 5,
-      "guidance": "具体、可操作的改写指导，100 字左右，说明如何在改写时体现这种风格，包括具体的句式、词汇、修辞等技巧"
-    }},
-    {{
-      "label": "风格标签 2",
-      "score": 4,
-      "guidance": "具体、可操作的改写指导"
-    }}
-    // ... 共 15-20 个风格标签，覆盖叙事逻辑、语言特征、修辞策略、文体功能、结构形式等所有维度
-  ],
-  "rewrite_suggestions": [
-    "具体的改写建议 1，如'保持客观中立的叙述视角，避免使用第一人称'",
-    "具体的改写建议 2，如'多使用复合句，通过连词连接多个分句'",
-    "具体的改写建议 3，如'适当引用权威观点和数据增强说服力'",
-    "具体的改写建议 4，如'使用半文半白的语言，文言词汇占比约 20%'",
-    "具体的改写建议 5，如'采用线性时间叙事，构建'问题 - 努力 - 结果 - 影响'的完整因果链'"
-  ]
+  "dimensions": {{
+    "词汇风格": [{{"label": "标签名", "score": 整数 1-5, "evidence": "依据文本片段"}}],
+    "句法风格": [{{"label": "标签名", "score": 整数 1-5, "evidence": "依据文本片段"}}],
+    "修辞风格": [{{"label": "标签名", "score": 整数 1-5, "evidence": "依据文本片段"}}],
+    "语气与情感": [{{"label": "标签名", "score": 整数 1-5, "evidence": "依据文本片段"}}],
+    "语体与正式度": [{{"label": "标签名", "score": 整数 1-5, "evidence": "依据文本片段"}}],
+    "时代感与文化风格": [{{"label": "标签名", "score": 整数 1-5, "evidence": "依据文本片段"}}],
+    "叙事风格": [{{"label": "标签名", "score": 整数 1-5, "evidence": "依据文本片段"}}]
+  }},
+  "other_styles": [{{"label": "补充标签", "score": 整数，"evidence": "依据"}}],
+  "summary": "整体风格描述段落"
 }}
-
-【风格标签生成指南】
-请从以下维度生成风格标签（每个维度至少生成 2-3 个标签）：
-1. 叙事逻辑：如"线性编年体"、"因果闭环"、"全知视角"等
-2. 语言特征：如"半文半白"、"长句主导"、"庄重语体"等
-3. 修辞策略：如"典故化修辞"、"辩证评价"、"多源互文"等
-4. 文体功能：如"数据权威"、"三重认证"、"价值引导"等
-5. 结构形式：如"三级标题"、"疏密有致"、"图文穿插"等
 
 【待分析文本】
 {text}
 
-请直接输出 JSON 格式结果，不要包含任何其他说明文字："""
+请直接输出 JSON 格式结果："""
         
         # 词频过滤提示词 - 强调只保留真正的风格词
         self.word_freq_prompt = """你是一个专业的文本风格分析助手。请严格筛选以下词频列表，只保留**真正影响文章风格的词汇**。
@@ -414,7 +386,7 @@ class LLMStyleAnalyzer:
             max_length: 最大文本长度（超过则截断）
             
         Returns:
-            包含风格标签的字典
+            包含风格标签的字典（转换为旧格式以兼容前端）
         """
         # 截断过长的文本
         if len(text) > max_length:
@@ -438,7 +410,46 @@ class LLMStyleAnalyzer:
             
             result = json.loads(response_text)
             
-            return result
+            # 将新的维度格式转换为前端需要的旧格式
+            converted_result = {
+                'overall_style_summary': result.get('summary', ''),
+                'style_labels': [],
+                'rewrite_suggestions': []
+            }
+            
+            # 从各个维度提取风格标签
+            dimensions = result.get('dimensions', {})
+            for dim_name, dim_labels in dimensions.items():
+                if isinstance(dim_labels, list):
+                    for label_item in dim_labels:
+                        if isinstance(label_item, dict) and 'label' in label_item:
+                            # 将维度信息融入到标签中
+                            converted_result['style_labels'].append({
+                                'label': f"{dim_name}: {label_item['label']}",
+                                'score': label_item.get('score', 3),
+                                'guidance': f"依据：{label_item.get('evidence', '')}"
+                            })
+            
+            # 添加其他显著风格
+            other_styles = result.get('other_styles', [])
+            if isinstance(other_styles, list):
+                for label_item in other_styles:
+                    if isinstance(label_item, dict) and 'label' in label_item:
+                        converted_result['style_labels'].append({
+                            'label': f"其他：{label_item['label']}",
+                            'score': label_item.get('score', 3),
+                            'guidance': f"依据：{label_item.get('evidence', '')}"
+                        })
+            
+            # 基于 summary 生成改写建议
+            summary = result.get('summary', '')
+            if summary:
+                converted_result['rewrite_suggestions'] = [
+                    f"整体风格：{summary}",
+                    "请根据上述风格特征进行改写，保持原文的核心信息和逻辑结构"
+                ]
+            
+            return converted_result
             
         except json.JSONDecodeError as e:
             print(f"JSON 解析错误：{e}")
@@ -553,7 +564,7 @@ def save_word_cloud(word_freq: Dict[str, int], output_path: str, is_chinese: boo
         return ""
 
 
-def analyze_document(file_path: str, use_llm: bool = False, output_dir: str = None) -> Dict[str, Any]:
+def analyze_document(file_path: str, use_llm: bool = False, output_dir: str = None, model: str = None) -> Dict[str, Any]:
     """
     分析文档并提取风格特征
     
@@ -561,13 +572,14 @@ def analyze_document(file_path: str, use_llm: bool = False, output_dir: str = No
         file_path: Word 文档路径
         use_llm: 是否使用 LLM 分析
         output_dir: 输出目录
+        model: 使用的模型名称（可选，默认使用配置中的模型）
         
     Returns:
         包含所有风格特征的字典
     """
-    # 使用默认配置
+    # 使用配置项中的目录
     if output_dir is None:
-        output_dir = 配置['输出目录']
+        output_dir = 配置 ['输出目录']
     
     # 创建输出目录
     os.makedirs(output_dir, exist_ok=True)
@@ -598,10 +610,12 @@ def analyze_document(file_path: str, use_llm: bool = False, output_dir: str = No
             if not api_key:
                 raise Exception("未设置 DASHSCOPE_API_KEY 环境变量，请检查 Railway 环境变量配置")
             
-            llm_analyzer = LLMStyleAnalyzer(model=配置 ['模型名称'])
+            # 使用传入的模型或默认模型
+            model_name = model if model else 配置 ['模型名称']
+            llm_analyzer = LLMStyleAnalyzer(model=model_name)
             
             # 1. 分析文本风格
-            print(f"  正在调用 LLM 进行风格分析...")
+            print(f"  正在调用 LLM 进行风格分析（模型：{model_name}）...")
             llm_result = llm_analyzer.analyze(text, max_length=配置 ['句子最大长度'])
             
             # 检查 LLM 分析是否成功

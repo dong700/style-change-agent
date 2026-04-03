@@ -1,0 +1,31 @@
+{
+  "current_model": "qwen-max",
+  "available_models": [
+    {
+      "id": "qwen-max",
+      "name": "Qwen-Max（效果最好）",
+      "description": "通义千问最强模型，效果最佳但速度较慢、成本较高",
+      "speed": "★★☆☆☆",
+      "quality": "★★★★★",
+      "cost": "高"
+    },
+    {
+      "id": "qwen-plus",
+      "name": "Qwen-Plus（平衡）",
+      "description": "速度和效果平衡，推荐使用",
+      "speed": "★★★★☆",
+      "quality": "★★★★☆",
+      "cost": "中"
+    },
+    {
+      "id": "qwen-turbo",
+      "name": "Qwen-Turbo（最快）",
+      "description": "速度最快、成本最低，适合快速测试",
+      "speed": "★★★★★",
+      "quality": "★★★☆☆",
+      "cost": "低"
+    }
+  ],
+  "analysis_max_length": 2000,
+  "rewrite_max_length": 5000
+}

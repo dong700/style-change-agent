@@ -25,6 +25,34 @@ app.config['OUTPUT_FOLDER'] = 'outputs'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 最大 16MB
 app.config['ALLOWED_EXTENSIONS'] = {'docx'}
 
+# 模型配置
+MODEL_CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'model_config.json')
+
+def load_model_config():
+    """加载模型配置"""
+    try:
+        with open(MODEL_CONFIG_PATH, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except:
+        return {
+            'current_model': 'qwen-max',
+            'available_models': [
+                {'id': 'qwen-max', 'name': 'Qwen-Max'},
+                {'id': 'qwen-plus', 'name': 'Qwen-Plus'},
+                {'id': 'qwen-turbo', 'name': 'Qwen-Turbo'}
+            ]
+        }
+
+def save_model_config(config):
+    """保存模型配置"""
+    with open(MODEL_CONFIG_PATH, 'w', encoding='utf-8') as f:
+        json.dump(config, f, ensure_ascii=False, indent=2)
+
+def get_current_model():
+    """获取当前使用的模型"""
+    config = load_model_config()
+    return config.get('current_model', 'qwen-max')
+
 # 确保目录存在
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
@@ -46,6 +74,52 @@ def health():
         'status': 'healthy',
         'service': 'style-change-agent'
     }), 200
+
+@app.route('/api/model_config', methods=['GET'])
+def get_model_config():
+    """获取模型配置"""
+    try:
+        config = load_model_config()
+        return jsonify({
+            'success': True,
+            'data': config
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/model_config', methods=['POST'])
+def set_model_config():
+    """设置当前使用的模型"""
+    try:
+        data = request.json
+        new_model = data.get('model')
+        
+        if not new_model:
+            return jsonify({'error': '请提供模型 ID'}), 400
+        
+        config = load_model_config()
+        available_models = [m['id'] for m in config.get('available_models', [])]
+        
+        if new_model not in available_models:
+            return jsonify({'error': f'无效的模型 ID，可选：{available_models}'}), 400
+        
+        config['current_model'] = new_model
+        save_model_config(config)
+        
+        return jsonify({
+            'success': True,
+            'message': f'已切换到模型：{new_model}',
+            'data': config
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
@@ -76,7 +150,7 @@ def upload_file():
         os.makedirs(output_dir, exist_ok=True)
         
         # 分析文档（使用 LLM）
-        features = analyze_document(filepath, use_llm=True, output_dir=output_dir)
+        features = analyze_document(filepath, use_llm=True, output_dir=output_dir, model=get_current_model())
         
         # 读取 JSON 结果
         json_path = features.get('json_path', '')
@@ -208,8 +282,8 @@ def rewrite_text():
         if not style_labels:
             return jsonify({'error': '请提供风格标签'}), 400
         
-        # 创建改写器
-        rewriter = StyleRewriter(model='qwen-max')
+        # 创建改写器（使用当前配置的模型）
+        rewriter = StyleRewriter(model=get_current_model())
         
         # 执行改写（传入量化特征）
         result = rewriter.rewrite_with_comparison(
@@ -273,8 +347,8 @@ def rewrite_from_file():
         if not target_text:
             return jsonify({'error': '无法从文档中提取文本'}), 400
         
-        # 创建改写器
-        rewriter = StyleRewriter(model='qwen-max')
+        # 创建改写器（使用当前配置的模型）
+        rewriter = StyleRewriter(model=get_current_model())
         
         # 执行改写
         result = rewriter.rewrite_with_comparison(

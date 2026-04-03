@@ -516,6 +516,30 @@
             <p>上传 Word 文档，深度分析写作风格，支持自定义调整</p>
         </header>
 
+        <!-- 模型选择器 -->
+        <div class="model-selector" style="background: white; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                <div style="flex: 1; min-width: 200px;">
+                    <label style="font-weight: bold; color: #667eea; margin-bottom: 5px; display: block;">
+                        ⚙️ 当前使用的模型
+                    </label>
+                    <select id="modelSelect" onchange="changeModel()" style="width: 100%; padding: 10px; border: 2px solid #667eea; border-radius: 8px; font-size: 1em; cursor: pointer;">
+                        <option value="qwen-max">Qwen-Max（效果最好，速度较慢）</option>
+                        <option value="qwen-plus">Qwen-Plus（平衡推荐）</option>
+                        <option value="qwen-turbo">Qwen-Turbo（速度最快）</option>
+                    </select>
+                </div>
+                <div style="flex: 1; min-width: 200px;">
+                    <div style="font-size: 0.9em; color: #666; line-height: 1.6;">
+                        <div><strong>Qwen-Max</strong>: 效果最佳，适合深度分析</div>
+                        <div><strong>Qwen-Plus</strong>: 速度效果平衡 ⭐推荐</div>
+                        <div><strong>Qwen-Turbo</strong>: 速度最快，适合快速测试</div>
+                    </div>
+                </div>
+                <div id="modelChangeStatus" style="color: #28a745; font-weight: bold; min-width: 150px; text-align: center;"></div>
+            </div>
+        </div>
+
         <!-- 上传区域 -->
         <section class="upload-section">
             <div class="upload-area" id="uploadArea">
@@ -925,6 +949,87 @@
                 wordContainer.appendChild(tag);
             });
         }
+
+        // 模型切换功能
+        function changeModel() {
+            const modelSelect = document.getElementById('modelSelect');
+            const selectedModel = modelSelect.value;
+            const statusDiv = document.getElementById('modelChangeStatus');
+            
+            statusDiv.textContent = '切换中...';
+            statusDiv.style.color = '#ffc107';
+            
+            fetch('/api/model_config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ model: selectedModel })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    statusDiv.textContent = '✓ 已切换';
+                    statusDiv.style.color = '#28a745';
+                    
+                    // 更新加载提示
+                    const loadingText = document.querySelector('#loading div:nth-child(2)');
+                    if (loadingText) {
+                        if (selectedModel === 'qwen-turbo') {
+                            loadingText.textContent = '正在快速分析文章风格...';
+                        } else if (selectedModel === 'qwen-plus') {
+                            loadingText.textContent = '正在分析文章风格...';
+                        } else {
+                            loadingText.textContent = '正在深度分析文章风格...';
+                        }
+                    }
+                    
+                    // 3 秒后清除状态
+                    setTimeout(() => {
+                        statusDiv.textContent = '';
+                    }, 3000);
+                } else {
+                    statusDiv.textContent = '✗ 失败';
+                    statusDiv.style.color = '#dc3545';
+                    alert('切换模型失败：' + data.error);
+                }
+            })
+            .catch(error => {
+                statusDiv.textContent = '✗ 失败';
+                statusDiv.style.color = '#dc3545';
+                alert('切换模型失败：' + error);
+            });
+        }
+
+        // 加载当前模型配置
+        function loadCurrentModel() {
+            fetch('/api/model_config')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const currentModel = data.data.current_model;
+                    document.getElementById('modelSelect').value = currentModel;
+                    
+                    // 根据当前模型调整加载提示
+                    const loadingText = document.querySelector('#loading div:nth-child(2)');
+                    if (loadingText) {
+                        if (currentModel === 'qwen-turbo') {
+                            loadingText.textContent = '正在快速分析文章风格...';
+                        } else if (currentModel === 'qwen-plus') {
+                            loadingText.textContent = '正在分析文章风格...';
+                        } else {
+                            loadingText.textContent = '正在深度分析文章风格...';
+                        }
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('加载模型配置失败:', error);
+            });
+        }
+
+        // 页面加载时获取当前模型
+        window.addEventListener('DOMContentLoaded', loadCurrentModel);
 
         function switchTab(tabName) {
             // 隐藏所有标签页
