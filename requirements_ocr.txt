@@ -1,0 +1,29 @@
+# Web 框架
+Flask>=2.3.0
+Werkzeug>=2.3.0
+
+# 基础依赖
+python-docx>=1.2.0
+jieba>=0.42.1
+
+# PDF 支持
+PyPDF2>=3.0.0
+pdf2image>=1.16.0
+
+# OCR 支持（指定兼容版本）
+paddlepaddle==2.6.2
+paddleocr==2.7.3
+
+# 向量检索
+faiss-cpu>=1.7.4
+
+# 进度条
+tqdm>=4.65.0
+
+# LLM 支持
+langchain-community>=0.0.20
+dashscope>=1.14.0
+
+# 其他依赖
+numpy<2.0.0
+Pillow>=9.0.0

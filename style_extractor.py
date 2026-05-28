@@ -26,7 +26,7 @@ except ImportError:
 # 配置项
 配置 = {
     '输出目录': 'output',
-    '示例目录': r"c:\Users\aodon\Desktop\style_change_agent\data\example",
+    '示例目录': os.path.join(os.path.dirname(__file__), 'data', 'example'),
     '最大词频数': 100,
     '句子最大长度': 2000,
     '模型名称': 'qwen-max'
@@ -279,21 +279,47 @@ class StyleExtractor:
 
 
 class LLMStyleAnalyzer:
-    """使用 LLM 进行文本风格分析 - 用于后续改写"""
+    """使用 LLM 进行文本风格分析 - 用于后续改写（支持自动切换模型和 Ollama 本地模型）"""
     
-    def __init__(self, model: str = "qwen-max"):
+    # 可用模型列表（按优先级排序）
+    AVAILABLE_MODELS = [
+        # DeepSeek API（推荐）
+        'deepseek-api:deepseek-v4-flash',  # DeepSeek V4 Flash，速度快效果好
+        'deepseek-api:deepseek-v4-pro',    # DeepSeek V4 Pro，效果更好
+    ]
+    
+    # DeepSeek API 配置
+    DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY', '')
+    DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+    
+    # Ollama 服务器地址
+    OLLAMA_BASE_URL = "http://localhost:11434"
+    
+    # Ollama 超时时间（秒）- 本地模型可能较慢，设置20分钟
+    OLLAMA_TIMEOUT = 1200
+    
+    def __init__(self, model: str = "deepseek-api:deepseek-v4-flash", auto_switch: bool = True, deepseek_api_key: str = ''):
         """
         初始化 LLM 分析器
         
         Args:
             model: 模型名称
+            auto_switch: 是否在出错时自动切换模型
+            deepseek_api_key: DeepSeek API Key（前端传入，优先使用）
         """
-        if not LLM_AVAILABLE:
-            raise ImportError("langchain-community 未安装，无法使用 LLM 分析功能")
+        self.model = model
+        self.auto_switch = auto_switch
+        self.current_model_index = self._get_model_index(model)
         
-        self.llm = Tongyi(model=model)
-        # 多维度开放标签风格分析提示词 - 系统、全面、灵活
-        self.prompt_template = """你是一位专业的文本风格分析专家。请对以下文本进行深入、全面的风格分析。
+        # DeepSeek API Key（优先使用前端传入的）
+        self._deepseek_api_key = deepseek_api_key or os.environ.get('DEEPSEEK_API_KEY', '')
+        
+        # 缓存 Ollama 服务状态，避免每次调用都检查
+        self._ollama_checked = False
+        self._ollama_available_models = []
+        
+        # 多维度开放标签风格分析提示词
+        self.prompt_template = """分析以下文本的风格特征，输出 JSON 格式结果。
 
 【分析要求】
 1. 从以下维度逐一分析文本的风格特征（每个维度可列出 1~3 个最显著的标签，每个标签给出 1-5 分并附上文本依据）：
@@ -315,26 +341,415 @@ class LLMStyleAnalyzer:
 - 评分要准确：1 分=不明显，3 分=中等，5 分=非常显著
 - 避免套话：不要使用"半文半白"这类万能标签，要精准描述文本的真实特征
 
-【输出格式】
-请严格按照以下 JSON 结构输出，不要添加额外解释：
+【JSON格式要求】
+1. 每个维度后面必须有逗号
+2. 数组元素之间必须有逗号
+3. 空数组写 []
+4. 不要输出任何其他内容
+
+【输出模板】
 {{
   "dimensions": {{
-    "词汇风格": [{{"label": "标签名", "score": 整数 1-5, "evidence": "依据文本片段"}}],
-    "句法风格": [{{"label": "标签名", "score": 整数 1-5, "evidence": "依据文本片段"}}],
-    "修辞风格": [{{"label": "标签名", "score": 整数 1-5, "evidence": "依据文本片段"}}],
-    "语气与情感": [{{"label": "标签名", "score": 整数 1-5, "evidence": "依据文本片段"}}],
-    "语体与正式度": [{{"label": "标签名", "score": 整数 1-5, "evidence": "依据文本片段"}}],
-    "时代感与文化风格": [{{"label": "标签名", "score": 整数 1-5, "evidence": "依据文本片段"}}],
-    "叙事风格": [{{"label": "标签名", "score": 整数 1-5, "evidence": "依据文本片段"}}]
+    "词汇风格": [{{"label": "标签", "score": 3, "evidence": "文本依据"}}],
+    "句法风格": [{{"label": "标签", "score": 3, "evidence": "文本依据"}}],
+    "修辞风格": [],
+    "语气与情感": [{{"label": "标签", "score": 3, "evidence": "文本依据"}}],
+    "语体与正式度": [{{"label": "标签", "score": 3, "evidence": "文本依据"}}],
+    "时代感与文化风格": [],
+    "叙事风格": []
   }},
-  "other_styles": [{{"label": "补充标签", "score": 整数，"evidence": "依据"}}],
-  "summary": "整体风格描述段落"
+  "other_styles": [],
+  "summary": "整体风格描述（50字以内）"
 }}
 
 【待分析文本】
 {text}
 
-请直接输出 JSON 格式结果："""
+JSON："""
+    
+    def _get_model_index(self, model: str) -> int:
+        """获取模型在列表中的索引"""
+        if model in self.AVAILABLE_MODELS:
+            return self.AVAILABLE_MODELS.index(model)
+        return 0
+    
+    def _call_llm(self, prompt: str, model: str) -> str:
+        """调用 LLM API"""
+        # 检查是否是 DeepSeek API 模型
+        if model.startswith('deepseek-api:'):
+            return self._call_deepseek_api(prompt, model.replace('deepseek-api:', ''))
+        
+        # 检查是否是 Ollama 模型
+        if model.startswith('ollama:'):
+            return self._call_ollama(prompt, model.replace('ollama:', ''))
+        
+        # 阿里云百练模型
+        import dashscope
+        from dashscope import Generation
+        
+        try:
+            # 尝试使用 Generation API
+            response = Generation.call(
+                model=model,
+                prompt=prompt,
+                max_tokens=2000
+            )
+            
+            if response.status_code == 200:
+                # 尝试不同的返回格式
+                if hasattr(response.output, 'text') and response.output.text:
+                    return response.output.text
+                elif hasattr(response.output, 'choices') and response.output.choices:
+                    choice = response.output.choices[0]
+                    if hasattr(choice, 'message') and hasattr(choice.message, 'content'):
+                        return choice.message.content
+                    elif hasattr(choice, 'text'):
+                        return choice.text
+                else:
+                    print(f"未知的返回格式: {dir(response.output)}")
+                    return None
+            else:
+                raise Exception(f"API 调用失败: {response.code} - {response.message}")
+        except Exception as e:
+            error_msg = str(e)
+            # 如果是 url error，尝试使用 ChatCompletion API
+            if 'url error' in error_msg.lower() or 'InvalidParameter' in error_msg:
+                print(f"Generation API 不支持模型 {model}，尝试 ChatCompletion API...")
+                return self._call_llm_chat(prompt, model)
+            raise Exception(f"模型 {model} 调用异常: {error_msg}")
+    
+    def _call_deepseek_api(self, prompt: str, model: str) -> str:
+        """调用 DeepSeek API（OpenAI 兼容格式）"""
+        import requests
+        import json
+        
+        # 获取 API Key（优先使用前端传入的）
+        api_key = self._deepseek_api_key
+        if not api_key:
+            raise Exception("DeepSeek API Key 未设置，请在页面中填写 API Key 或设置环境变量 DEEPSEEK_API_KEY")
+        
+        try:
+            print(f"正在调用 DeepSeek API ({model})...")
+            
+            response = requests.post(
+                f"{self.DEEPSEEK_BASE_URL}/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": model,
+                    "messages": [
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": 0.7,
+                    "max_tokens": 4096
+                },
+                timeout=300  # 5分钟超时
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                content = result.get('choices', [{}])[0].get('message', {}).get('content', '')
+                if content:
+                    print(f"DeepSeek API 调用成功，返回 {len(content)} 字符")
+                    return content
+                else:
+                    raise Exception("DeepSeek API 返回内容为空")
+            else:
+                error_detail = response.text[:500] if response.text else "无详细信息"
+                raise Exception(f"DeepSeek API 调用失败: {response.status_code} - {error_detail}")
+                
+        except requests.exceptions.Timeout:
+            raise Exception("DeepSeek API 调用超时（超过 300 秒）")
+        except requests.exceptions.ConnectionError as e:
+            raise Exception(f"DeepSeek API 连接失败: {str(e)}")
+        except json.JSONDecodeError as e:
+            raise Exception(f"DeepSeek API 返回格式错误: {str(e)}")
+        except Exception as e:
+            error_msg = str(e)
+            if 'DeepSeek' not in error_msg:
+                error_msg = f"DeepSeek API 调用异常: {error_msg}"
+            raise Exception(error_msg)
+    
+    def _call_ollama(self, prompt: str, model: str) -> str:
+        """调用 Ollama 本地模型"""
+        import requests
+        import json
+        
+        try:
+            # 只在第一次调用时检查 Ollama 服务状态
+            if not self._ollama_checked:
+                print(f"正在检查 Ollama 服务状态...")
+                try:
+                    response = requests.get(f"{self.OLLAMA_BASE_URL}/api/tags", timeout=30)
+                    if response.status_code != 200:
+                        raise Exception(f"Ollama 服务返回错误: {response.status_code}")
+                    
+                    # 缓存可用模型列表
+                    available_models = response.json().get('models', [])
+                    self._ollama_available_models = [m.get('name', '') for m in available_models]
+                    print(f"Ollama 可用模型: {self._ollama_available_models}")
+                    self._ollama_checked = True
+                    
+                except requests.exceptions.ConnectionError:
+                    raise Exception(f"无法连接到 Ollama 服务 ({self.OLLAMA_BASE_URL})，请确保 Ollama 已启动\n启动方法: 在终端运行 'ollama serve'")
+                except requests.exceptions.Timeout:
+                    raise Exception("连接 Ollama 服务超时，请检查 Ollama 是否正常运行")
+            
+            # 检查模型是否可用
+            if model not in self._ollama_available_models and f"{model}:latest" not in self._ollama_available_models:
+                print(f"警告: 模型 {model} 未在 Ollama 中找到")
+                print(f"请运行: ollama pull {model}")
+                raise Exception(f"模型 {model} 未安装，请先运行: ollama pull {model}")
+            
+            print(f"正在调用 Ollama 模型 {model}...")
+            
+            # 调用 Ollama API
+            response = requests.post(
+                f"{self.OLLAMA_BASE_URL}/api/generate",
+                json={
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "num_predict": 4096,  # 增加到 4096，避免输出被截断
+                        "temperature": 0.7
+                    }
+                },
+                timeout=self.OLLAMA_TIMEOUT
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                response_text = result.get('response', '')
+                if response_text and response_text.strip():
+                    print(f"Ollama 模型 {model} 调用成功，返回 {len(response_text)} 字符")
+                    return response_text
+                else:
+                    raise Exception("Ollama 返回内容为空")
+            else:
+                error_detail = response.text[:500] if response.text else "无详细信息"
+                raise Exception(f"Ollama API 调用失败: {response.status_code} - {error_detail}")
+                
+        except requests.exceptions.Timeout:
+            raise Exception(f"Ollama 模型 {model} 调用超时（超过 {self.OLLAMA_TIMEOUT} 秒）\n建议: 尝试使用更小的模型或增加超时时间")
+        except requests.exceptions.ConnectionError as e:
+            # 连接失败时重置检查状态，下次调用会重新检查服务
+            self._ollama_checked = False
+            raise Exception(f"Ollama 连接中断: {str(e)}\n请检查 Ollama 服务是否仍在运行（可能电脑休眠后服务已停止）")
+        except json.JSONDecodeError as e:
+            raise Exception(f"Ollama 返回格式错误: {str(e)}")
+        except Exception as e:
+            error_msg = str(e)
+            if 'Ollama' not in error_msg and 'ollama' not in error_msg.lower() and '模型' not in error_msg:
+                error_msg = f"Ollama 调用异常: {error_msg}"
+            raise Exception(error_msg)
+    
+    def _call_llm_chat(self, prompt: str, model: str) -> str:
+        """使用 ChatCompletion API 调用 LLM"""
+        import dashscope
+        from http import HTTPStatus
+        
+        try:
+            response = dashscope.Generation.call(
+                model=model,
+                messages=[
+                    {'role': 'user', 'content': prompt}
+                ],
+                result_format='message'
+            )
+            
+            if response.status_code == HTTPStatus.OK:
+                return response.output.choices[0].message.content
+            else:
+                raise Exception(f"ChatCompletion API 调用失败: {response.code} - {response.message}")
+        except Exception as e:
+            raise Exception(f"ChatCompletion API 调用异常: {str(e)}")
+    
+    def _try_fix_json_format(self, json_text: str) -> dict:
+        """
+        尝试修复常见的 JSON 格式问题
+        返回修复后的 dict，如果无法修复则返回 None
+        """
+        import re
+        
+        try:
+            print("尝试修复 JSON 格式...")
+            
+            # 问题1: 键名大小写问题 - 将常见的键名转为小写
+            json_text = re.sub(r'"Dimensions"', '"dimensions"', json_text, flags=re.IGNORECASE)
+            json_text = re.sub(r'"Score"', '"score"', json_text, flags=re.IGNORECASE)
+            json_text = re.sub(r'"Evidence"', '"evidence"', json_text, flags=re.IGNORECASE)
+            json_text = re.sub(r'"Label"', '"label"', json_text, flags=re.IGNORECASE)
+            
+            # 问题2: 修复 "evidence": "value1", "value2", "value3" 格式
+            # 这不是合法JSON，需要将多个值合并
+            # 例如: "evidence": "肇基之艰", "办学宗旨", "创办" -> "evidence": "肇基之艰, 办学宗旨, 创办"
+            
+            # 找到所有 "key": "value", "value2", "value3" 模式
+            def fix_multi_values(text):
+                # 匹配 "key": 后面跟着多个用逗号分隔的字符串
+                pattern = r'"(evidence|label)"\s*:\s*"([^"]+)"((?:\s*,\s*"[^"]+")+)'
+                
+                def replace_func(match):
+                    key = match.group(1)
+                    first_value = match.group(2)
+                    rest_values = match.group(3)
+                    # 提取剩余的值
+                    rest_values = re.findall(r'"([^"]+)"', rest_values)
+                    all_values = [first_value] + rest_values
+                    combined = ", ".join(all_values)
+                    return f'"{key}": "{combined}"'
+                
+                return re.sub(pattern, replace_func, text)
+            
+            json_text = fix_multi_values(json_text)
+            
+            # 问题3: 维度值应该是数组但变成了对象
+            # 先尝试解析
+            try:
+                result = json.loads(json_text)
+            except json.JSONDecodeError:
+                # 如果还是失败，尝试更激进的修复
+                print("标准解析失败，尝试激进修复...")
+                result = self._aggressive_json_fix(json_text)
+                if result is None:
+                    return None
+            
+            # 检查并修复维度格式
+            if 'dimensions' in result or 'Dimensions' in result:
+                dims = result.get('dimensions') or result.get('Dimensions', {})
+                fixed_dims = {}
+                
+                for dim_name, dim_value in dims.items():
+                    if isinstance(dim_value, dict):
+                        # 需要转换为数组格式
+                        score = dim_value.get('score') or dim_value.get('Score', 3)
+                        evidence = dim_value.get('evidence') or dim_value.get('Evidence', '')
+                        label = dim_value.get('label') or dim_value.get('Label', dim_name)
+                        
+                        fixed_dims[dim_name] = [{
+                            'label': label,
+                            'score': score,
+                            'evidence': str(evidence)
+                        }]
+                    elif isinstance(dim_value, list):
+                        fixed_dims[dim_name] = dim_value
+                    else:
+                        fixed_dims[dim_name] = [{
+                            'label': dim_name,
+                            'score': 3,
+                            'evidence': str(dim_value)
+                        }]
+                
+                result['dimensions'] = fixed_dims
+            
+            # 确保 summary 存在
+            if 'summary' not in result:
+                result['summary'] = ''
+            
+            print("JSON 格式修复成功")
+            return result
+            
+        except Exception as e:
+            print(f"JSON 格式修复失败: {e}")
+            return None
+    
+    def _aggressive_json_fix(self, json_text: str) -> dict:
+        """
+        激进的 JSON 修复，用于处理严重格式错误
+        """
+        import re
+        
+        try:
+            # 尝试提取关键信息并重建 JSON
+            result = {
+                'dimensions': {},
+                'other_styles': [],
+                'summary': ''
+            }
+            
+            # 提取各个维度的信息
+            dimension_names = ['词汇风格', '句法风格', '修辞风格', '语气与情感', '语体与正式度', '时代感与文化风格', '叙事风格']
+            
+            for dim_name in dimension_names:
+                # 尝试找到该维度的内容 - 使用普通字符串避免 f-string 转义问题
+                pattern = '"' + dim_name + r'"\s*:\s*\{([^}]+)\}'
+                match = re.search(pattern, json_text)
+                if match:
+                    content = match.group(1)
+                    # 提取 score
+                    score_match = re.search(r'"score"\s*:\s*(\d+)', content, re.IGNORECASE)
+                    score = int(score_match.group(1)) if score_match else 3
+                    # 提取 evidence
+                    evidence_match = re.search(r'"evidence"\s*:\s*"([^"]+)"', content, re.IGNORECASE)
+                    evidence = evidence_match.group(1) if evidence_match else ''
+                    
+                    result['dimensions'][dim_name] = [{
+                        'label': dim_name,
+                        'score': score,
+                        'evidence': evidence
+                    }]
+            
+            if result['dimensions']:
+                print("激进修复成功，提取到部分维度信息")
+                return result
+            else:
+                return None
+                
+        except Exception as e:
+            print(f"激进修复失败: {e}")
+            return None
+    
+    def _call_with_auto_switch(self, prompt: str) -> str:
+        """带自动切换的 LLM 调用"""
+        errors = []
+        
+        for i in range(self.current_model_index, len(self.AVAILABLE_MODELS)):
+            model = self.AVAILABLE_MODELS[i]
+            try:
+                print(f"尝试使用模型: {model}")
+                result = self._call_llm(prompt, model)
+                
+                # 检查返回值是否有效
+                if result and result.strip():
+                    self.model = model  # 更新当前成功的模型
+                    self.current_model_index = i
+                    return result
+                else:
+                    error_msg = "返回内容为空"
+                    errors.append(f"{model}: {error_msg}")
+                    print(f"模型 {model} 返回为空，切换到下一个模型...")
+                    continue
+                    
+            except Exception as e:
+                error_msg = str(e)
+                errors.append(f"{model}: {error_msg}")
+                print(f"模型 {model} 调用失败: {error_msg}")
+                
+                # 判断是否需要切换到下一个模型
+                should_switch = (
+                    'quota' in error_msg.lower() or 
+                    'limit' in error_msg.lower() or 
+                    '400' in error_msg or 
+                    'InvalidParameter' in error_msg or 
+                    'url error' in error_msg or
+                    '连接中断' in error_msg or
+                    '无法连接' in error_msg or
+                    '未安装' in error_msg or
+                    '返回内容为空' in error_msg
+                )
+                
+                if should_switch:
+                    print(f"切换到下一个模型...")
+                    continue
+                else:
+                    # 其他错误也尝试下一个模型
+                    continue
+        
+        # 所有模型都失败
+        raise Exception(f"所有模型都调用失败:\n" + "\n".join(errors))
         
         # 词频过滤提示词 - 强调只保留真正的风格词
         self.word_freq_prompt = """你是一个专业的文本风格分析助手。请严格筛选以下词频列表，只保留**真正影响文章风格的词汇**。
@@ -396,19 +811,86 @@ class LLMStyleAnalyzer:
         prompt = self.prompt_template.format(text=text)
         
         try:
-            # 调用 LLM
-            response = self.llm.invoke(prompt)
+            # 调用 LLM（带自动切换）
+            if self.auto_switch:
+                response_text = self._call_with_auto_switch(prompt)
+            else:
+                response_text = self._call_llm(prompt, self.model)
+            
+            # 检查返回值
+            if not response_text:
+                print("LLM 返回为空")
+                return {'style_labels': [], 'error': 'LLM 返回为空'}
             
             # 解析 JSON 响应
-            response_text = response.strip()
+            response_text = response_text.strip()
             
-            # 尝试提取 JSON 内容
+            # 尝试提取 JSON 内容 - 多种格式兼容
+            json_text = response_text
+            
+            # 格式1: ```json ... ```
             if '```json' in response_text:
                 json_match = re.search(r'```json\s*(.*?)\s*```', response_text, re.DOTALL)
                 if json_match:
-                    response_text = json_match.group(1)
+                    json_text = json_match.group(1).strip()
             
-            result = json.loads(response_text)
+            # 格式2: ``` ... ``` (没有json标记)
+            elif '```' in response_text:
+                json_match = re.search(r'```\s*(.*?)\s*```', response_text, re.DOTALL)
+                if json_match:
+                    json_text = json_match.group(1).strip()
+            
+            # 格式3: 查找 { ... } 的JSON对象
+            if not json_text.startswith('{'):
+                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                if json_match:
+                    json_text = json_match.group(0).strip()
+            
+            # 格式4: 移除可能的前缀文本
+            if '{' in json_text and not json_text.startswith('{'):
+                start_idx = json_text.find('{')
+                json_text = json_text[start_idx:]
+            
+            # 格式5: 移除尾随逗号（Python json 不支持）
+            # 处理 ,] 和 ,} 的情况
+            json_text = re.sub(r',(\s*[\]\}])', r'\1', json_text)
+            
+            # 格式5.1: 替换中文引号为单引号（模型经常在evidence中使用中文引号）
+            # 注意：只替换中文引号 U+201C 和 U+201D，不要替换英文双引号
+            json_text = json_text.replace('\u201c', "'").replace('\u201d', "'")  # 中文双引号 ""
+            json_text = json_text.replace('\u2018', "'").replace('\u2019', "'")  # 中文单引号 ''
+            
+            # 格式5.5: 修复缺少逗号的问题
+            # 在 } { 之间添加逗号（数组元素之间缺少逗号）
+            json_text = re.sub(r'\}\s*\{', '}, {', json_text)
+            # 在 ] { 之间添加逗号（对象属性之间缺少逗号）
+            json_text = re.sub(r'\]\s*\{', '], {', json_text)
+            # 在 } " 之间添加逗号（属性之间缺少逗号）
+            json_text = re.sub(r'\}\s*"', '}, "', json_text)
+            
+            # 格式6: 尝试修复被截断的 JSON
+            # 检查括号是否匹配
+            open_braces = json_text.count('{') - json_text.count('}')
+            open_brackets = json_text.count('[') - json_text.count(']')
+            
+            if open_braces > 0 or open_brackets > 0:
+                print(f"警告: JSON 可能被截断，缺少 {open_braces} 个 }} 和 {open_brackets} 个 ]")
+                # 尝试补全缺失的括号
+                json_text += ']' * open_brackets + '}' * open_braces
+                print(f"已尝试自动补全括号")
+            
+            # 尝试解析 JSON
+            try:
+                result = json.loads(json_text)
+            except json.JSONDecodeError as e:
+                print(f"JSON 解析失败，尝试修复格式错误...")
+                print(f"错误详情: {e}")
+                # 先打印 JSON 的前200个字符看看
+                print(f"JSON前200字符: {json_text[:200]}")
+                # 尝试修复常见的格式问题
+                result = self._try_fix_json_format(json_text)
+                if result is None:
+                    raise e
             
             # 将新的维度格式转换为前端需要的旧格式
             converted_result = {
@@ -453,8 +935,8 @@ class LLMStyleAnalyzer:
             
         except json.JSONDecodeError as e:
             print(f"JSON 解析错误：{e}")
-            print(f"原始响应：{response}")
-            return {'style_labels': [], 'error': 'JSON 解析失败'}
+            print(f"原始响应（前500字符）：{response_text[:500] if response_text else 'None'}")
+            return {'style_labels': [], 'error': 'JSON 解析失败', 'raw_response': response_text[:500] if response_text else None}
         except Exception as e:
             print(f"LLM 分析出错：{e}")
             return {'style_labels': [], 'error': str(e)}
@@ -476,8 +958,11 @@ class LLMStyleAnalyzer:
             # 构建提示词
             prompt = self.word_freq_prompt.format(word_freq=word_freq_str)
             
-            # 调用 LLM
-            response = self.llm.invoke(prompt)
+            # 调用 LLM（带自动切换）
+            if self.auto_switch:
+                response = self._call_with_auto_switch(prompt)
+            else:
+                response = self._call_llm(prompt, self.model)
             
             # 解析 JSON 响应
             response_text = response.strip()

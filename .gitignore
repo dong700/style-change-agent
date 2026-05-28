@@ -41,6 +41,7 @@ api_key.txt
 # 上传和输出文件
 uploads/
 outputs/
+cache/
 *.docx
 *.doc
 

@@ -1,29 +1,59 @@
 """
-文章风格分析 Web 应用 - Flask 后端
+文章风格深度分析 Web 应用 - Flask 后端
 """
 
 import os
+import logging
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+os.chdir(PROJECT_ROOT)
+
+# 修复 PaddlePaddle 3.x oneDNN 兼容性问题（必须在导入 paddle 之前设置）
+os.environ['FLAGS_use_mkldnn'] = '0'
+os.environ['FLAGS_enable_onednn_backend'] = '0'
+os.environ['FLAGS_enable_pir_api'] = '0'
+os.environ['FLAGS_pir_apply_inplace_pass'] = '0'
+
+# 减少 Werkzeug 日志输出（特别是进度查询的频繁请求）
+logging.getLogger('werkzeug').setLevel(logging.WARNING)
+
 import json
 import sys
 from flask import Flask, request, jsonify, send_from_directory, render_template, send_file
 from werkzeug.utils import secure_filename
 from datetime import datetime
 
-# 添加项目根目录到路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 添加项目根目录和 web_app 目录到路径
+sys.path.insert(0, PROJECT_ROOT)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from style_extractor import analyze_document, extract_text_from_docx
 from style_rewriter import StyleRewriter
+from large_text_api import large_text_api
 
-app = Flask(__name__, 
-            template_folder='../templates',
-            static_folder='../static')
+app = Flask(__name__,
+            template_folder=os.path.join(PROJECT_ROOT, 'templates'),
+            static_folder=os.path.join(PROJECT_ROOT, 'static'))
+
+# 禁用模板缓存
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.jinja_env.auto_reload = True
+
+# 添加缓存控制头
+@app.after_request
+def add_no_cache_headers(response):
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+app.register_blueprint(large_text_api, url_prefix='/large_text')
 
 # 配置
-app.config['UPLOAD_FOLDER'] = 'uploads'
-app.config['OUTPUT_FOLDER'] = 'outputs'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 最大 16MB
-app.config['ALLOWED_EXTENSIONS'] = {'docx'}
+app.config['UPLOAD_FOLDER'] = os.path.join(PROJECT_ROOT, 'uploads')
+app.config['OUTPUT_FOLDER'] = os.path.join(PROJECT_ROOT, 'outputs')
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024  # 最大 500MB（超大文本处理）
+app.config['ALLOWED_EXTENSIONS'] = {'docx', 'pdf'}
 
 # 模型配置
 MODEL_CONFIG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'model_config.json')
@@ -486,4 +516,4 @@ if __name__ == '__main__':
     # Railway 需要监听 0.0.0.0 并使用 PORT 环境变量
     import os
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=True)

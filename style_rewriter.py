@@ -4,32 +4,29 @@
 """
 
 import re
+import os
 import json
+import requests
 from typing import Dict, List, Any
-
-# 尝试导入 LLM 相关库
-try:
-    from langchain_community.llms.tongyi import Tongyi
-    LLM_AVAILABLE = True
-except ImportError:
-    LLM_AVAILABLE = False
-    print("警告：langchain-community 未安装，无法使用改写功能")
 
 
 class StyleRewriter:
     """文章风格改写器"""
     
-    def __init__(self, model: str = "qwen-max"):
+    def __init__(self, model: str = "deepseek-api:deepseek-v4-flash", deepseek_api_key: str = ''):
         """
         初始化改写器
         
         Args:
             model: 模型名称
+            deepseek_api_key: DeepSeek API Key
         """
-        if not LLM_AVAILABLE:
-            raise ImportError("langchain-community 未安装，无法使用改写功能")
+        self.model = model
+        self.deepseek_api_key = deepseek_api_key or os.environ.get('DEEPSEEK_API_KEY', '')
+        self.deepseek_base_url = "https://api.deepseek.com"
         
-        self.llm = Tongyi(model=model)
+        # 引用 LLMStyleAnalyzer 用于统一的模型调用
+        self._llm_caller = None
         
         # 文章改写提示词 - 核心提示词
         self.rewrite_prompt = """你是一位专业的文本改写专家，擅长将一篇文章改写成另一种风格。
@@ -167,11 +164,15 @@ class StyleRewriter:
         )
         
         try:
-            # 调用 LLM
-            response = self.llm.invoke(prompt)
+            # 调用 LLM（通过 LLMStyleAnalyzer 统一调用）
+            if self._llm_caller is None:
+                from style_extractor import LLMStyleAnalyzer
+                self._llm_caller = LLMStyleAnalyzer(model=self.model, deepseek_api_key=self.deepseek_api_key)
+            
+            response = self._llm_caller._call_llm(prompt, self.model)
             
             # 清理响应文本
-            rewritten_text = response.strip()
+            rewritten_text = response.strip() if response else ''
             
             # 移除可能的 markdown 标记
             if rewritten_text.startswith('```'):

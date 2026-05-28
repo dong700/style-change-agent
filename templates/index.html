@@ -514,6 +514,7 @@
         <header>
             <h1>📝 文章风格深度分析系统</h1>
             <p>上传 Word 文档，深度分析写作风格，支持自定义调整</p>
+            <a href="/large_text/" style="display: inline-block; margin-top: 12px; padding: 10px 25px; background: rgba(255,255,255,0.25); color: white; text-decoration: none; border-radius: 8px; font-weight: bold; border: 2px solid rgba(255,255,255,0.5); transition: all 0.3s;" onmouseover="this.style.background='rgba(255,255,255,0.4)'" onmouseout="this.style.background='rgba(255,255,255,0.25)'">📂 超大文件处理（PDF/大文档）→</a>
         </header>
 
         <!-- 模型选择器 -->
@@ -524,19 +525,12 @@
                         ⚙️ 当前使用的模型
                     </label>
                     <select id="modelSelect" onchange="changeModel()" style="width: 100%; padding: 10px; border: 2px solid #667eea; border-radius: 8px; font-size: 1em; cursor: pointer;">
-                        <option value="qwen-max">Qwen-Max（效果最好，速度较慢）</option>
-                        <option value="qwen-plus">Qwen-Plus（平衡推荐）</option>
-                        <option value="qwen-turbo">Qwen-Turbo（速度最快）</option>
+                        <!-- 动态加载 -->
                     </select>
                 </div>
-                <div style="flex: 1; min-width: 200px;">
-                    <div style="font-size: 0.9em; color: #666; line-height: 1.6;">
-                        <div><strong>Qwen-Max</strong>: 效果最佳，适合深度分析</div>
-                        <div><strong>Qwen-Plus</strong>: 速度效果平衡 ⭐推荐</div>
-                        <div><strong>Qwen-Turbo</strong>: 速度最快，适合快速测试</div>
-                    </div>
+                <div id="modelChangeStatus" style="flex: 1; min-width: 200px;">
+                    <div style="font-size: 0.9em; color: #666;">模型就绪</div>
                 </div>
-                <div id="modelChangeStatus" style="color: #28a745; font-weight: bold; min-width: 150px; text-align: center;"></div>
             </div>
         </div>
 
@@ -1006,16 +1000,31 @@
             fetch('/api/model_config')
             .then(response => response.json())
             .then(data => {
-                if (data.success) {
+                if (data.success && data.data) {
+                    const select = document.getElementById('modelSelect');
+                    select.innerHTML = '';
+                    
+                    // 动态生成选项
+                    if (data.data.available_models) {
+                        data.data.available_models.forEach(model => {
+                            const option = document.createElement('option');
+                            option.value = model.id;
+                            option.textContent = model.name;
+                            if (model.id === data.data.current_model) {
+                                option.selected = true;
+                            }
+                            select.appendChild(option);
+                        });
+                    }
+                    
                     const currentModel = data.data.current_model;
-                    document.getElementById('modelSelect').value = currentModel;
                     
                     // 根据当前模型调整加载提示
                     const loadingText = document.querySelector('#loading div:nth-child(2)');
                     if (loadingText) {
-                        if (currentModel === 'qwen-turbo') {
+                        if (currentModel.includes('flash')) {
                             loadingText.textContent = '正在快速分析文章风格...';
-                        } else if (currentModel === 'qwen-plus') {
+                        } else if (currentModel.includes('plus')) {
                             loadingText.textContent = '正在分析文章风格...';
                         } else {
                             loadingText.textContent = '正在深度分析文章风格...';

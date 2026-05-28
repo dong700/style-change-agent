@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>超大文本处理系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #eee;
+        }
+        
+        header h1 {
+            color: #667eea;
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        
+        header p {
+            color: #666;
+            font-size: 1.1em;
+        }
+        
+        .step-indicator {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 30px 0;
+            gap: 20px;
+        }
+        
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px 25px;
+            background: #f5f5f5;
+            border-radius: 10px;
+            color: #999;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .step.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            transform: scale(1.05);
+        }
+        
+        .step.completed {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .step-number {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1em;
+        }
+        
+        .step.active .step-number {
+            background: rgba(255,255,255,0.4);
+        }
+        
+        .step-arrow {
+            font-size: 1.5em;
+            color: #ccc;
+        }
+        
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 20px;
+        }
+        
+        .upload-area:hover {
+            background: #f8f9ff;
+            border-color: #764ba2;
+        }
+        
+        .upload-area.dragover {
+            background: #e8e9ff;
+            border-color: #764ba2;
+        }
+        
+        .upload-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+        
+        .upload-text {
+            font-size: 1.2em;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .upload-hint {
+            color: #999;
+            font-size: 0.9em;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #666;
+        }
+        
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .progress-container {
+            background: #f5f5f5;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .progress-text {
+            text-align: center;
+            color: #666;
+            margin-top: 10px;
+        }
+        
+        .results-container {
+            margin-top: 20px;
+        }
+        
+        .fragment-card {
+            background: #f8f9ff;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .fragment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .fragment-id {
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .quality-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        
+        .quality-high {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .quality-medium {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .quality-low {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .section {
+            margin-bottom: 30px;
+        }
+        
+        .section-title {
+            color: #667eea;
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #eee;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📚 超大文本处理系统</h1>
+            <p>支持 PDF 和 Word 文档的智能分批处理、风格提取、改写和质量检查</p>
+            <div style="margin-top: 15px;">
+                <a href="/" style="color: #667eea; text-decoration: none; font-weight: bold;">← 返回主页</a>
+            </div>
+        </header>
+        
+        <!-- 步骤指示器 -->
+        <div class="step-indicator">
+            <div class="step active" id="step1">
+                <div class="step-number">1</div>
+                <span>上传源文档</span>
+            </div>
+            <div class="step-arrow">→</div>
+            <div class="step" id="step2">
+                <div class="step-number">2</div>
+                <span>分析风格</span>
+            </div>
+            <div class="step-arrow">→</div>
+            <div class="step" id="step3">
+                <div class="step-number">3</div>
+                <span>编辑标签</span>
+            </div>
+            <div class="step-arrow">→</div>
+            <div class="step" id="step4">
+                <div class="step-number">4</div>
+                <span>改写目标</span>
+            </div>
+        </div>
+        
+        <!-- 模型选择器 -->
+        <div style="background: linear-gradient(135deg, #f8f9ff, #e8e9ff); border-radius: 10px; padding: 20px; margin: 20px 0; border: 2px solid #e0e0e0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+                <div style="flex: 1; min-width: 250px;">
+                    <label style="font-weight: bold; color: #667eea; margin-bottom: 5px; display: block;">
+                        ⚙️ 当前使用的模型
+                    </label>
+                    <select id="modelSelect" onchange="changeModel()" style="width: 100%; padding: 12px; border: 2px solid #667eea; border-radius: 8px; font-size: 1em; background: white; cursor: pointer;">
+                        <!-- 动态加载 -->
+                    </select>
+                </div>
+                <div id="modelChangeStatus" style="flex: 1; min-width: 200px; display: flex; align-items: center; color: #666; font-size: 0.95em;">
+                    模型就绪
+                </div>
+            </div>
+            <!-- DeepSeek API Key 输入 -->
+            <div id="apiKeySection" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+                <label style="font-weight: bold; color: #667eea; margin-bottom: 5px; display: block;">
+                    🔑 DeepSeek API Key（使用 DeepSeek 模型时需要）
+                </label>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="password" id="deepseekApiKey" placeholder="sk-..." 
+                           style="flex: 1; padding: 12px; border: 2px solid #667eea; border-radius: 8px; font-size: 1em;"
+                           oninput="saveApiKey()">
+                    <button onclick="toggleApiKeyVisibility()" style="padding: 12px 16px; border: 1px solid #ccc; border-radius: 8px; cursor: pointer; background: #f5f5f5;" title="显示/隐藏">
+                        👁️
+                    </button>
+                </div>
+                <p style="color: #888; font-size: 0.85em; margin-top: 5px;">
+                    从 <a href="https://platform.deepseek.com/api_keys" target="_blank" style="color: #667eea;">DeepSeek 开放平台</a> 获取 API Key
+                </p>
+            </div>
+        </div>
+        
+        <!-- 第一步：上传源文档 -->
+        <div class="section" id="section-upload-source">
+            <h2 class="section-title">📄 第一步：上传源文档（提取风格参考）</h2>
+            <p style="color: #666; margin-bottom: 20px;">上传您要参考风格的文档（如校史、年鉴等），系统将自动分析其写作风格</p>
+            
+            <div class="upload-area" id="sourceUploadArea">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">点击或拖拽上传源文档</div>
+                <div class="upload-hint">支持 .docx 和 .pdf 格式</div>
+                <input type="file" id="sourceFileInput" accept=".docx,.pdf" style="display: none;">
+            </div>
+            
+            <!-- OCR 选项 -->
+            <div id="ocrOption" class="hidden" style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 10px; padding: 15px; margin-top: 15px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" id="useOcrCheckbox" style="width: 20px; height: 20px; cursor: pointer;">
+                    <label for="useOcrCheckbox" style="cursor: pointer; font-weight: bold; color: #856404;">
+                        🔍 启用 OCR 模式（扫描版 PDF）
+                    </label>
+                </div>
+                
+                <!-- OCR 引擎选择 -->
+                <div id="ocrEngineSelect" class="hidden" style="margin-top: 12px; margin-left: 30px; padding: 10px; background: #fff; border-radius: 8px;">
+                    <label style="font-weight: bold; color: #666; display: block; margin-bottom: 8px;">OCR 引擎：</label>
+                    <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                        <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                            <input type="radio" name="ocrEngine" value="paddleocr" checked style="cursor: pointer;">
+                            <span>PaddleOCR（免费本地 OCR）</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <p style="color: #856404; font-size: 0.9em; margin-top: 8px; margin-left: 30px;">
+                    适用于扫描版 PDF（图片），将识别图片中的文字。
+                </p>
+                
+                <!-- 部分片段分析选项 -->
+                <div style="margin-top: 15px; padding: 12px; background: #e8f4fd; border-radius: 8px; border: 1px solid #b8daff;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="partialAnalysisCheckbox" style="width: 20px; height: 20px; cursor: pointer;">
+                        <label for="partialAnalysisCheckbox" style="cursor: pointer; font-weight: bold; color: #004085;">
+                            ⚡ 快速模式：只分析部分片段
+                        </label>
+                    </div>
+                    <div id="partialAnalysisConfig" class="hidden" style="margin-top: 12px; margin-left: 30px;">
+                        <label style="font-weight: bold; color: #666; display: block; margin-bottom: 8px;">分析比例：</label>
+                        <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                <input type="radio" name="analysisRatio" value="0.1" style="cursor: pointer;">
+                                <span>10%（最快，约 1/10 片段）</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                <input type="radio" name="analysisRatio" value="0.2" checked style="cursor: pointer;">
+                                <span>20%（推荐，约 1/5 片段）</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 5px; cursor: pointer;">
+                                <input type="radio" name="analysisRatio" value="0.3" style="cursor: pointer;">
+                                <span>30%（更准确）</span>
+                            </label>
+                        </div>
+                    </div>
+                    <p style="color: #004085; font-size: 0.85em; margin-top: 8px; margin-left: 30px;">
+                        💡 适用于风格统一的文档（如校史、年鉴）。只分析部分片段提取整体风格，大幅减少 API 消耗。
+                    </p>
+                </div>
+            </div>
+            
+            <div id="sourceFileInfo" class="hidden" style="text-align: center; margin-top: 20px;">
+                <p style="font-size: 1.1em; margin-bottom: 15px;">
+                    <strong>已选择文件：</strong><span id="sourceFileName" style="color: #667eea;"></span>
+                </p>
+                <button class="btn btn-primary" onclick="processSourceDocument()" style="font-size: 1.1em; padding: 15px 40px;">
+                    🚀 开始分析风格
+                </button>
+            </div>
+        </div>
+        
+        <!-- 第二步：分析进度 -->
+        <div class="section hidden" id="section-progress">
+            <h2 class="section-title">⏳ 正在分析源文档风格...</h2>
+            <div class="progress-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="sourceProgressBar" style="width: 0%">0%</div>
+                </div>
+                <div class="progress-text" id="sourceProgressText">准备中...</div>
+            </div>
+        </div>
+        
+        <!-- 第三步：查看和编辑风格标签 -->
+        <div class="section hidden" id="section-results">
+            <h2 class="section-title">📊 分析结果 - 风格标签（可编辑）</h2>
+            
+            <!-- 统计信息 -->
+            <div class="stats-grid" id="sourceStats"></div>
+            
+            <!-- 风格标签区域 -->
+            <div style="margin-top: 30px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="color: #667eea;">🏷️ 风格标签</h3>
+                    <button class="btn btn-primary" onclick="showAddStyleModal()">➕ 添加新标签</button>
+                </div>
+                <div id="styleLabelsContainer"></div>
+            </div>
+            
+            <!-- 操作按钮 -->
+            <div style="text-align: center; margin-top: 30px; padding: 20px; background: #f8f9ff; border-radius: 10px;">
+                <button class="btn btn-secondary" onclick="saveSourceAnalysis()" style="margin-right: 10px;">
+                    💾 保存分析结果
+                </button>
+                <button class="btn btn-primary" onclick="goToStep4()" style="font-size: 1.1em; padding: 15px 40px;">
+                    下一步：上传目标文档改写 →
+                </button>
+            </div>
+        </div>
+        
+        <!-- 第四步：上传目标文档并改写 -->
+        <div class="section hidden" id="section-target">
+            <h2 class="section-title">📝 第四步：上传目标文档（待改写）</h2>
+            <p style="color: #666; margin-bottom: 20px;">上传需要改写的文档，系统将按照源文档风格进行改写</p>
+            
+            <div class="upload-area" id="targetUploadArea">
+                <div class="upload-icon">📁</div>
+                <div class="upload-text">点击或拖拽上传目标文档</div>
+                <div class="upload-hint">支持 .docx 和 .pdf 格式</div>
+                <input type="file" id="targetFileInput" accept=".docx,.pdf" style="display: none;">
+            </div>
+            
+            <div id="targetFileInfo" class="hidden" style="text-align: center; margin-top: 20px;">
+                <p style="font-size: 1.1em; margin-bottom: 15px;">
+                    <strong>已选择文件：</strong><span id="targetFileName" style="color: #667eea;"></span>
+                </p>
+                <button class="btn btn-primary" onclick="processTargetDocument()" style="font-size: 1.1em; padding: 15px 40px;">
+                    ✍️ 开始改写
+                </button>
+            </div>
+            
+            <!-- 改写进度 -->
+            <div id="targetProgress" class="progress-container hidden" style="margin-top: 20px;">
+                <h3>改写进度</h3>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="targetProgressBar" style="width: 0%">0%</div>
+                </div>
+                <div class="progress-text" id="targetProgressText">准备中...</div>
+            </div>
+            
+            <!-- 改写结果 -->
+            <div id="targetResults" class="hidden" style="margin-top: 30px;">
+                <h3 style="color: #667eea; margin-bottom: 20px;">✅ 改写完成！</h3>
+                <div class="stats-grid" id="targetStats"></div>
+                <div style="text-align: center; margin-top: 20px;">
+                    <button class="btn btn-secondary" onclick="exportResults()">
+                        📥 导出结果
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 风格标签编辑模态框 -->
+    <div id="styleModal" class="hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;">
+        <div style="background: white; padding: 30px; border-radius: 15px; width: 90%; max-width: 500px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+            <h3 id="styleModalTitle" style="color: #667eea; margin-bottom: 20px;">编辑风格标签</h3>
+            
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold;">标签名称：</label>
+                <input type="text" id="styleLabelInput" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1em;" placeholder="如：词汇风格：口语化">
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold;">评分（1-5）：</label>
+                <select id="styleScoreInput" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1em;">
+                    <option value="1">1 分（不明显）</option>
+                    <option value="2">2 分（较轻微）</option>
+                    <option value="3" selected>3 分（中等）</option>
+                    <option value="4">4 分（较显著）</option>
+                    <option value="5">5 分（非常显著）</option>
+                </select>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 5px; font-weight: bold;">改写指导：</label>
+                <textarea id="styleGuidanceInput" style="width: 100%; padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 1em; min-height: 100px;" placeholder="描述如何在改写时体现这种风格..."></textarea>
+            </div>
+            
+            <div style="text-align: right;">
+                <button class="btn btn-secondary" onclick="closeStyleModal()" style="margin-right: 10px;">取消</button>
+                <button class="btn btn-primary" onclick="saveStyleLabel()">保存</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let sourceFile = null;
+        let targetFile = null;
+        let sourceAnalysisId = null;
+        let currentResults = null;
+        let styleLabels = [];
+        let editingIndex = -1;
+        
+        // 模型切换功能
+        function changeModel() {
+            const modelSelect = document.getElementById('modelSelect');
+            const selectedModel = modelSelect.value;
+            const statusDiv = document.getElementById('modelChangeStatus');
+            
+            statusDiv.textContent = '切换中...';
+            
+            fetch('/api/model_config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({model: selectedModel})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    statusDiv.innerHTML = `✅ 已切换到：${selectedModel}`;
+                    setTimeout(() => { statusDiv.textContent = '模型就绪'; }, 2000);
+                } else {
+                    statusDiv.innerHTML = `❌ 切换失败：${data.error}`;
+                }
+            })
+            .catch(error => {
+                statusDiv.innerHTML = `❌ 请求失败：${error}`;
+            });
+        }
+        
+        // API Key 相关功能
+        function saveApiKey() {
+            const apiKey = document.getElementById('deepseekApiKey').value;
+            localStorage.setItem('deepseek_api_key', apiKey);
+        }
+        
+        function loadApiKey() {
+            const savedKey = localStorage.getItem('deepseek_api_key') || '';
+            document.getElementById('deepseekApiKey').value = savedKey;
+        }
+        
+        function getApiKey() {
+            return document.getElementById('deepseekApiKey').value || '';
+        }
+        
+        function toggleApiKeyVisibility() {
+            const input = document.getElementById('deepseekApiKey');
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+        
+        // 加载当前模型
+        function loadCurrentModel() {
+            fetch('/api/model_config')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.data) {
+                    const select = document.getElementById('modelSelect');
+                    select.innerHTML = '';
+                    
+                    if (data.data.available_models) {
+                        data.data.available_models.forEach(model => {
+                            const option = document.createElement('option');
+                            option.value = model.id;
+                            option.textContent = model.name + ' (' + model.cost + ')';
+                            if (model.id === data.data.current_model) {
+                                option.selected = true;
+                            }
+                            select.appendChild(option);
+                        });
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('加载模型配置失败:', error);
+            });
+        }
+        
+        // 页面加载时获取 API Key
+        window.addEventListener('DOMContentLoaded', () => {
+            loadCurrentModel();
+            loadApiKey();
+        });
+        
+        // 步骤控制
+        function updateSteps(currentStep) {
+            for (let i = 1; i <= 4; i++) {
+                const stepEl = document.getElementById(`step${i}`);
+                stepEl.classList.remove('active', 'completed');
+                if (i < currentStep) {
+                    stepEl.classList.add('completed');
+                } else if (i === currentStep) {
+                    stepEl.classList.add('active');
+                }
+            }
+        }
+        
+        // 文件上传处理
+        document.getElementById('sourceUploadArea').addEventListener('click', () => {
+            document.getElementById('sourceFileInput').click();
+        });
+        
+        document.getElementById('sourceFileInput').addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                sourceFile = e.target.files[0];
+                document.getElementById('sourceFileName').textContent = sourceFile.name;
+                document.getElementById('sourceFileInfo').classList.remove('hidden');
+                
+                // 如果是 PDF 文件，显示 OCR 选项
+                if (sourceFile.name.toLowerCase().endsWith('.pdf')) {
+                    document.getElementById('ocrOption').classList.remove('hidden');
+                } else {
+                    document.getElementById('ocrOption').classList.add('hidden');
+                    document.getElementById('ocrEngineSelect').classList.add('hidden');
+                }
+            }
+        });
+        
+        // OCR 复选框变化时显示/隐藏引擎选择
+        document.getElementById('useOcrCheckbox').addEventListener('change', (e) => {
+            if (e.target.checked) {
+                document.getElementById('ocrEngineSelect').classList.remove('hidden');
+            } else {
+                document.getElementById('ocrEngineSelect').classList.add('hidden');
+            }
+        });
+        
+        // 部分片段分析选项切换
+        document.getElementById('partialAnalysisCheckbox').addEventListener('change', (e) => {
+            if (e.target.checked) {
+                document.getElementById('partialAnalysisConfig').classList.remove('hidden');
+            } else {
+                document.getElementById('partialAnalysisConfig').classList.add('hidden');
+            }
+        });
+        
+        document.getElementById('targetUploadArea').addEventListener('click', () => {
+            document.getElementById('targetFileInput').click();
+        });
+        
+        document.getElementById('targetFileInput').addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                targetFile = e.target.files[0];
+                document.getElementById('targetFileName').textContent = targetFile.name;
+                document.getElementById('targetFileInfo').classList.remove('hidden');
+            }
+        });
+        
+        // 处理源文档
+        async function processSourceDocument() {
+            if (!sourceFile) {
+                alert('请先选择文件');
+                return;
+            }
+            
+            // 检查是否启用 OCR
+            const useOcr = document.getElementById('useOcrCheckbox').checked;
+            const ocrEngine = document.querySelector('input[name="ocrEngine"]:checked')?.value || 'paddleocr';
+            
+            // 检查是否启用部分片段分析
+            const partialAnalysis = document.getElementById('partialAnalysisCheckbox').checked;
+            const analysisRatio = document.querySelector('input[name="analysisRatio"]:checked')?.value || '0.2';
+            
+            // 获取当前选择的模型
+            const model = document.getElementById('modelSelect').value;
+            
+            // 获取 API Key
+            const apiKey = getApiKey();
+            
+            // 切换到第二步
+            updateSteps(2);
+            document.getElementById('section-upload-source').classList.add('hidden');
+            document.getElementById('section-progress').classList.remove('hidden');
+            
+            const formData = new FormData();
+            formData.append('file', sourceFile);
+            formData.append('use_ocr', useOcr);
+            formData.append('ocr_engine', ocrEngine);
+            formData.append('model', model);
+            formData.append('partial_analysis', partialAnalysis);
+            formData.append('analysis_ratio', analysisRatio);
+            if (apiKey) {
+                formData.append('deepseek_api_key', apiKey);
+            }
+            
+            let modeText = useOcr ? `上传中（OCR 模式 - ${ocrEngine === 'paddleocr' ? 'PaddleOCR 免费' : '通义千问视觉'}）` : '上传中';
+            if (partialAnalysis) {
+                modeText += `，快速模式（${Math.round(analysisRatio * 100)}% 片段）`;
+            }
+            modeText += '...';
+            updateProgress('source', 0, modeText);
+            
+            try {
+                const response = await fetch('/large_text/process_source', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    sourceAnalysisId = result.analysis_id;
+                    pollProgress('source', result.analysis_id);
+                } else {
+                    alert('处理失败：' + result.error);
+                    updateSteps(1);
+                    document.getElementById('section-upload-source').classList.remove('hidden');
+                    document.getElementById('section-progress').classList.add('hidden');
+                }
+            } catch (error) {
+                alert('请求失败：' + error);
+                updateSteps(1);
+                document.getElementById('section-upload-source').classList.remove('hidden');
+                document.getElementById('section-progress').classList.add('hidden');
+            }
+        }
+        
+        // 进入第四步
+        function goToStep4() {
+            updateSteps(4);
+            document.getElementById('section-results').classList.add('hidden');
+            document.getElementById('section-target').classList.remove('hidden');
+        }
+        
+        // 处理目标文档
+        async function processTargetDocument() {
+            if (!targetFile) {
+                alert('请先选择文件');
+                return;
+            }
+            
+            if (!sourceAnalysisId) {
+                alert('请先处理源文档');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', targetFile);
+            formData.append('source_analysis_id', sourceAnalysisId);
+            
+            document.getElementById('targetProgress').classList.remove('hidden');
+            updateProgress('target', 0, '上传中...');
+            
+            try {
+                const response = await fetch('/large_text/process_target', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    pollProgress('target', result.task_id);
+                } else {
+                    alert('处理失败：' + result.error);
+                }
+            } catch (error) {
+                alert('请求失败：' + error);
+            }
+        }
+        
+        // 轮询进度
+        async function pollProgress(type, taskId) {
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/large_text/progress/${type}/${taskId}`);
+                    const result = await response.json();
+                    
+                    updateProgress(type, result.progress, result.message);
+                    
+                    if (result.status === 'completed') {
+                        clearInterval(interval);
+                        showResults(type, result.results);
+                    } else if (result.status === 'failed') {
+                        clearInterval(interval);
+                        alert('处理失败：' + result.error);
+                    }
+                } catch (error) {
+                    clearInterval(interval);
+                    alert('获取进度失败：' + error);
+                }
+            }, 2000);
+        }
+        
+        // 更新进度
+        function updateProgress(type, progress, message) {
+            document.getElementById(`${type}ProgressBar`).style.width = `${progress}%`;
+            document.getElementById(`${type}ProgressBar`).textContent = `${progress}%`;
+            document.getElementById(`${type}ProgressText`).textContent = message;
+        }
+        
+        // 显示结果
+        function showResults(type, results) {
+            if (type === 'source') {
+                // 切换到第三步
+                updateSteps(3);
+                document.getElementById('section-progress').classList.add('hidden');
+                document.getElementById('section-results').classList.remove('hidden');
+                
+                document.getElementById('sourceStats').innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-number">${results.total_fragments}</div>
+                        <div class="stat-label">总片段数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${results.total_chapters}</div>
+                        <div class="stat-label">章节数</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${results.avg_length}</div>
+                        <div class="stat-label">平均片段长度</div>
+                    </div>
+                `;
+                
+                loadStyleLabels(sourceAnalysisId);
+            } else {
+                document.getElementById('targetFileInfo').classList.add('hidden');
+                document.getElementById('targetProgress').classList.add('hidden');
+                document.getElementById('targetResults').classList.remove('hidden');
+                currentResults = results;
+                
+                document.getElementById('targetStats').innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-number">${results.quality_stats.high_quality}</div>
+                        <div class="stat-label">高质量</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${results.quality_stats.needs_review}</div>
+                        <div class="stat-label">需审核</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">${results.quality_stats.low_quality}</div>
+                        <div class="stat-label">低质量</div>
+                    </div>
+                `;
+                
+                alert('改写完成！');
+            }
+        }
+        
+        // 加载风格标签
+        async function loadStyleLabels(analysisId) {
+            try {
+                const response = await fetch(`/large_text/style_labels/${analysisId}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    styleLabels = result.style_labels || [];
+                    renderStyleLabels();
+                }
+            } catch (error) {
+                console.error('加载风格标签失败：', error);
+            }
+        }
+        
+        // 渲染风格标签
+        function renderStyleLabels() {
+            const container = document.getElementById('styleLabelsContainer');
+            container.innerHTML = '';
+            
+            if (styleLabels.length === 0) {
+                container.innerHTML = '<p style="color: #999; text-align: center; padding: 20px;">暂无风格标签，点击上方按钮添加</p>';
+                return;
+            }
+            
+            styleLabels.forEach((label, index) => {
+                const card = document.createElement('div');
+                card.className = 'fragment-card';
+                card.innerHTML = `
+                    <div class="fragment-header">
+                        <div>
+                            <span class="fragment-id">${label.label}</span>
+                            <span class="quality-badge quality-${label.score >= 4 ? 'high' : label.score >= 3 ? 'medium' : 'low'}">
+                                ⭐ ${label.score}/5
+                            </span>
+                        </div>
+                        <div>
+                            <button class="btn btn-secondary" onclick="editStyleLabel(${index})" style="padding: 6px 12px; font-size: 0.9em;">
+                                ✏️ 编辑
+                            </button>
+                            <button class="btn btn-secondary" onclick="deleteStyleLabel(${index})" style="padding: 6px 12px; font-size: 0.9em; margin-left: 5px;">
+                                🗑️ 删除
+                            </button>
+                        </div>
+                    </div>
+                    ${label.guidance ? `<p style="color: #666; margin-top: 10px; line-height: 1.6;">${label.guidance}</p>` : ''}
+                `;
+                container.appendChild(card);
+            });
+        }
+        
+        // 显示添加风格标签模态框
+        function showAddStyleModal() {
+            editingIndex = -1;
+            document.getElementById('styleModalTitle').textContent = '添加风格标签';
+            document.getElementById('styleLabelInput').value = '';
+            document.getElementById('styleScoreInput').value = '3';
+            document.getElementById('styleGuidanceInput').value = '';
+            document.getElementById('styleModal').classList.remove('hidden');
+        }
+        
+        // 编辑风格标签
+        function editStyleLabel(index) {
+            editingIndex = index;
+            const label = styleLabels[index];
+            
+            document.getElementById('styleModalTitle').textContent = '编辑风格标签';
+            document.getElementById('styleLabelInput').value = label.label;
+            document.getElementById('styleScoreInput').value = label.score;
+            document.getElementById('styleGuidanceInput').value = label.guidance || '';
+            document.getElementById('styleModal').classList.remove('hidden');
+        }
+        
+        // 删除风格标签
+        function deleteStyleLabel(index) {
+            if (confirm('确定要删除这个风格标签吗？')) {
+                styleLabels.splice(index, 1);
+                renderStyleLabels();
+            }
+        }
+        
+        // 保存风格标签
+        function saveStyleLabel() {
+            const label = document.getElementById('styleLabelInput').value.trim();
+            const score = parseInt(document.getElementById('styleScoreInput').value);
+            const guidance = document.getElementById('styleGuidanceInput').value.trim();
+            
+            if (!label) {
+                alert('请输入标签名称');
+                return;
+            }
+            
+            const styleItem = {
+                label: label,
+                score: score,
+                guidance: guidance
+            };
+            
+            if (editingIndex === -1) {
+                styleLabels.push(styleItem);
+            } else {
+                styleLabels[editingIndex] = styleItem;
+            }
+            
+            renderStyleLabels();
+            closeStyleModal();
+        }
+        
+        // 关闭模态框
+        function closeStyleModal() {
+            document.getElementById('styleModal').classList.add('hidden');
+        }
+        
+        // 保存分析结果
+        async function saveSourceAnalysis() {
+            if (!sourceAnalysisId) {
+                alert('没有可保存的分析结果');
+                return;
+            }
+            
+            try {
+                await fetch(`/large_text/style_labels/${sourceAnalysisId}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        style_labels: styleLabels
+                    })
+                });
+            } catch (error) {
+                console.error('保存风格标签失败：', error);
+            }
+            
+            const name = prompt('请输入保存名称：', `分析_${new Date().toLocaleDateString()}`);
+            if (!name) return;
+            
+            try {
+                const response = await fetch('/large_text/save_analysis', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        analysis_id: sourceAnalysisId,
+                        name: name
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('保存成功！');
+                } else {
+                    alert('保存失败：' + result.error);
+                }
+            } catch (error) {
+                alert('请求失败：' + error);
+            }
+        }
+        
+        // 导出结果
+        async function exportResults() {
+            if (!currentResults) {
+                alert('没有可导出的结果');
+                return;
+            }
+            
+            window.open('/large_text/export_results', '_blank');
+        }
+    </script>
+</body>
+</html>
